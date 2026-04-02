@@ -33,12 +33,12 @@ as $$
 declare
   updated_order orders%rowtype;
 begin
-  update orders
+  update orders as o
   set
     status = 'completed',
     completed_at = now()
-  where id = p_order_id
-    and status = 'live'
+  where o.id = p_order_id
+    and o.status = 'live'
   returning * into updated_order;
 
   if not found then
