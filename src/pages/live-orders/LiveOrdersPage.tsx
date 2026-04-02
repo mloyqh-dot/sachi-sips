@@ -50,6 +50,55 @@ function normalizeOrder(order: OrderRecord): Order {
   };
 }
 
+async function fetchLiveOrders() {
+  const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+  if (!isLocalDev) {
+    const response = await fetch('/api/live-orders');
+    const result = await response.json().catch(() => null) as { error?: string; orders?: OrderRecord[] } | null;
+
+    if (!response.ok) {
+      throw new Error(result?.error || 'Unable to load live orders');
+    }
+
+    return (result?.orders ?? []).map(normalizeOrder);
+  }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select(`
+      id,
+      ticket_number,
+      created_at,
+      status,
+      subtotal,
+      total,
+      payment_method,
+      notes,
+      staff_name,
+      order_items (
+        id,
+        order_id,
+        product_id,
+        name,
+        quantity,
+        unit_price,
+        options,
+        line_total,
+        created_at
+      )
+    `)
+    .eq('status', 'live')
+    .order('created_at', { ascending: true })
+    .order('created_at', { foreignTable: 'order_items', ascending: true });
+
+  if (error) {
+    throw new Error(error.message || 'Unable to load live orders');
+  }
+
+  return ((data ?? []) as OrderRecord[]).map(normalizeOrder);
+}
+
 const s = {
   page: {
     flex: 1,
@@ -308,45 +357,12 @@ const LiveOrdersPage: React.FC = () => {
       isFetchingRef.current = true;
 
       try {
-        const { data, error: fetchError } = await supabase
-          .from('orders')
-          .select(`
-            id,
-            ticket_number,
-            created_at,
-            status,
-            subtotal,
-            total,
-            payment_method,
-            notes,
-            staff_name,
-            order_items (
-              id,
-              order_id,
-              product_id,
-              name,
-              quantity,
-              unit_price,
-              options,
-              line_total,
-              created_at
-            )
-          `)
-          .eq('status', 'live')
-          .order('created_at', { ascending: true })
-          .order('created_at', { foreignTable: 'order_items', ascending: true });
+        const normalized = await fetchLiveOrders();
 
-        if (!active) {
-          return;
-        }
+        if (!active) return;
 
-        if (fetchError) {
-          setError(fetchError.message);
-        } else {
-          const normalized = ((data ?? []) as OrderRecord[]).map(normalizeOrder);
-          setOrders(normalized);
-          setError(null);
-        }
+        setOrders(normalized);
+        setError(null);
       } catch (err) {
         if (active) {
           setError(err instanceof Error ? err.message : 'Unknown error');
