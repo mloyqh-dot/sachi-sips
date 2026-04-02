@@ -27,7 +27,7 @@ export interface CartItem {
 }
 
 export type PaymentMethod = 'cash' | 'card' | 'other';
-export type OrderStatus = 'live';
+export type OrderStatus = 'live' | 'completed';
 
 export interface OrderItem {
   id: string;
@@ -45,6 +45,7 @@ export interface Order {
   id: string;
   ticket_number: string;
   created_at: string;
+  completed_at?: string | null;
   status: OrderStatus;
   subtotal: number;
   total: number;

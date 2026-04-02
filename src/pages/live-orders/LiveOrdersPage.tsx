@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { supabase } from '../../lib/supabase';
 import type { Order, OrderItem, OrderRecord } from '../../types';
 
 const POLL_INTERVAL_MS = 5000;
@@ -40,7 +39,7 @@ function formatOptions(options: OrderItem['options']) {
     options.sugar ? SUGAR_LABELS[options.sugar] ?? options.sugar : null,
   ].filter(Boolean);
 
-  return labels.length > 0 ? labels.join(' · ') : null;
+  return labels.length > 0 ? labels.join(' / ') : null;
 }
 
 function normalizeOrder(order: OrderRecord): Order {
@@ -51,52 +50,29 @@ function normalizeOrder(order: OrderRecord): Order {
 }
 
 async function fetchLiveOrders() {
-  const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const response = await fetch('/api/live-orders');
+  const result = await response.json().catch(() => null) as { error?: string; orders?: OrderRecord[] } | null;
 
-  if (!isLocalDev) {
-    const response = await fetch('/api/live-orders');
-    const result = await response.json().catch(() => null) as { error?: string; orders?: OrderRecord[] } | null;
-
-    if (!response.ok) {
-      throw new Error(result?.error || 'Unable to load live orders');
-    }
-
-    return (result?.orders ?? []).map(normalizeOrder);
+  if (!response.ok) {
+    throw new Error(result?.error || 'Unable to load live orders');
   }
 
-  const { data, error } = await supabase
-    .from('orders')
-    .select(`
-      id,
-      ticket_number,
-      created_at,
-      status,
-      subtotal,
-      total,
-      payment_method,
-      notes,
-      staff_name,
-      order_items (
-        id,
-        order_id,
-        product_id,
-        name,
-        quantity,
-        unit_price,
-        options,
-        line_total,
-        created_at
-      )
-    `)
-    .eq('status', 'live')
-    .order('created_at', { ascending: true })
-    .order('created_at', { foreignTable: 'order_items', ascending: true });
+  return (result?.orders ?? []).map(normalizeOrder);
+}
 
-  if (error) {
-    throw new Error(error.message || 'Unable to load live orders');
+async function completeOrder(orderId: string) {
+  const response = await fetch('/api/complete-order', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ orderId }),
+  });
+  const result = await response.json().catch(() => null) as { error?: string } | null;
+
+  if (!response.ok) {
+    throw new Error(result?.error || 'Unable to complete order');
   }
-
-  return ((data ?? []) as OrderRecord[]).map(normalizeOrder);
 }
 
 const s = {
@@ -339,12 +315,47 @@ const s = {
     color: 'var(--color-brown)',
     opacity: 0.78,
   },
+  actions: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '0.5rem',
+    paddingTop: '0.25rem',
+  },
+  actionButton: (disabled: boolean) => ({
+    border: 'none',
+    borderRadius: '999px',
+    padding: '0.85rem 1rem',
+    background: disabled ? 'rgba(104, 40, 55, 0.2)' : 'var(--color-burgundy)',
+    color: '#FFF9F2',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '13px',
+    fontWeight: 700,
+    letterSpacing: '0.02em',
+    cursor: disabled ? 'wait' as const : 'pointer' as const,
+    opacity: disabled ? 0.7 : 1,
+  }),
+  actionHint: {
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '12px',
+    lineHeight: 1.5,
+    color: 'var(--color-brown)',
+    opacity: 0.75,
+  },
+  inlineError: {
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '12px',
+    lineHeight: 1.5,
+    color: '#8B0000',
+  },
 };
 
 const LiveOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [completingOrderIds, setCompletingOrderIds] = useState<Record<string, boolean>>({});
+  const [orderErrors, setOrderErrors] = useState<Record<string, string>>({});
   const isFetchingRef = useRef(false);
   const hasResolvedInitialLoadRef = useRef(false);
 
@@ -377,7 +388,7 @@ const LiveOrdersPage: React.FC = () => {
       }
     }
 
-    loadOrders(true);
+    void loadOrders(true);
     const intervalId = window.setInterval(() => {
       void loadOrders(false);
     }, POLL_INTERVAL_MS);
@@ -387,6 +398,35 @@ const LiveOrdersPage: React.FC = () => {
       window.clearInterval(intervalId);
     };
   }, []);
+
+  async function handleCompleteOrder(order: Order) {
+    if (completingOrderIds[order.id]) return;
+
+    setSuccessMessage(null);
+    setOrderErrors(current => {
+      if (!current[order.id]) return current;
+
+      const next = { ...current };
+      delete next[order.id];
+      return next;
+    });
+    setCompletingOrderIds(current => ({ ...current, [order.id]: true }));
+
+    try {
+      await completeOrder(order.id);
+      setOrders(current => current.filter(entry => entry.id !== order.id));
+      setSuccessMessage(`Order ${order.ticket_number} marked as served.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setOrderErrors(current => ({ ...current, [order.id]: message }));
+    } finally {
+      setCompletingOrderIds(current => {
+        const next = { ...current };
+        delete next[order.id];
+        return next;
+      });
+    }
+  }
 
   return (
     <div style={s.page}>
@@ -403,12 +443,13 @@ const LiveOrdersPage: React.FC = () => {
           <div style={s.statusPanel}>
             <span style={s.statusLabel}>Open Tickets</span>
             <span style={s.statusValue}>{orders.length}</span>
-            <span style={s.statusNote}>Display-only for now. Completion controls come in the next phase.</span>
+            <span style={s.statusNote}>Mark tickets as served to clear them from the live kitchen queue.</span>
           </div>
         </section>
 
-        {loading && <div style={s.alert('info')}>Loading live orders…</div>}
+        {loading && <div style={s.alert('info')}>Loading live orders...</div>}
         {!loading && error && <div style={s.alert('error')}>Unable to load live orders: {error}</div>}
+        {!loading && !error && successMessage && <div style={s.alert('info')}>{successMessage}</div>}
         {!loading && !error && orders.length === 0 && (
           <div style={s.alert('info')}>No live orders right now. New tickets will appear here after refresh.</div>
         )}
@@ -450,6 +491,21 @@ const LiveOrdersPage: React.FC = () => {
                       </div>
                     );
                   })}
+                </div>
+
+                <div style={s.actions}>
+                  <button
+                    type="button"
+                    style={s.actionButton(Boolean(completingOrderIds[order.id]))}
+                    disabled={Boolean(completingOrderIds[order.id])}
+                    onClick={() => {
+                      void handleCompleteOrder(order);
+                    }}
+                  >
+                    {completingOrderIds[order.id] ? 'Marking as Served...' : 'Mark as Served'}
+                  </button>
+                  <span style={s.actionHint}>Completing a ticket removes it from the live queue but keeps it stored for reporting.</span>
+                  {orderErrors[order.id] && <span style={s.inlineError}>{orderErrors[order.id]}</span>}
                 </div>
               </article>
             ))}

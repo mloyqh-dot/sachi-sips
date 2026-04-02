@@ -66,6 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       id,
       ticket_number,
       created_at,
+      completed_at,
       status,
       subtotal,
       total,
