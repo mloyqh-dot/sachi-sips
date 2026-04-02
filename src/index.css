@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=Pinyon+Script&family=Alice&family=Public+Sans:wght@400;600&display=swap');
+
+:root {
+  /* ── Brand tokens ──────────────────────────────────────────────────────── */
+  --color-pink:     #E59090;
+  --color-burgundy: #682837;
+  --color-brown:    #52301A;
+  --color-green:    #4D4823;
+  --color-butter:   #F0E4BF;
+  --color-yellow:   #FFE373;
+
+  /* ── Semantic aliases ──────────────────────────────────────────────────── */
+  --bg:           #F0E4BF;
+  --text:         #52301A;
+  --text-h:       #682837;
+  --border:       rgba(104, 40, 55, 0.18);
+  --accent:       #E59090;
+  --accent-bg:    rgba(229, 144, 144, 0.15);
+  --shadow:       0 2px 10px rgba(82, 48, 26, 0.10);
+
+  /* ── Typography ────────────────────────────────────────────────────────── */
+  --font-display: 'Pinyon Script', cursive;
+  --font-heading: 'Alice', serif;
+  --font-body:    'Public Sans', sans-serif;
+
+  font: 16px/1.55 var(--font-body);
+  letter-spacing: 0.01em;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+#root {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  color: var(--text-h);
+  margin: 0;
+}
+
+h1 {
+  font-size: 1.875rem;
+  letter-spacing: -0.02em;
+  margin-block: 1.5rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+  letter-spacing: -0.01em;
+  margin-block-end: 0.5rem;
+}
+
+p {
+  margin: 0;
+}
