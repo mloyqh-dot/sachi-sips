@@ -48,8 +48,12 @@ const SUGAR_OPTIONS: { value: SugarOption; label: string }[] = [
   { value: 'more_sweet', label: 'More Sweet' },
 ];
 
-function isCustomizableLatte(product: Product) {
-  return /matcha latte|hojicha latte/i.test(product.name);
+function isCustomizable(product: Product) {
+  return (
+    /matcha latte|hojicha latte/i.test(product.name) ||
+    product.category === 'Coffee' ||
+    product.category === 'Specials'
+  );
 }
 
 function isOatOnlyLatte(product: Product) {
@@ -649,7 +653,7 @@ const POSPage: React.FC = () => {
   }, []);
 
   const addToCart = useCallback((product: Product) => {
-    if (isCustomizableLatte(product)) {
+    if (isCustomizable(product)) {
       setCustomizingProduct(product);
       setSelectedMilk(null);
       setSelectedSugar(null);
