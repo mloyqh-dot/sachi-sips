@@ -68,6 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       created_at,
       completed_at,
       status,
+      order_type,
       subtotal,
       total,
       payment_method,
@@ -82,7 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         unit_price,
         options,
         line_total,
-        created_at
+        created_at,
+        ready_at
       )
     `)
     .eq('status', 'live')

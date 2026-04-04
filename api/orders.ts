@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 type PaymentMethod = 'cash' | 'card' | 'other';
+type OrderType = 'dine_in' | 'takeaway';
 type MilkOption = 'dairy' | 'oat';
 type SugarOption = 'no_sugar' | 'less_sweet' | 'normal' | 'more_sweet';
 
@@ -18,6 +19,7 @@ type OrderItemPayload = {
 type CreateOrderRequest = {
   staffName?: string;
   paymentMethod?: PaymentMethod;
+  order_type?: OrderType;
   notes?: string;
   subtotal?: number;
   total?: number;
@@ -58,6 +60,10 @@ type CanonicalOrderItemPayload = {
 
 function isPaymentMethod(value: unknown): value is PaymentMethod {
   return value === 'cash' || value === 'card' || value === 'other';
+}
+
+function isOrderType(value: unknown): value is OrderType {
+  return value === 'dine_in' || value === 'takeaway';
 }
 
 function isValidItem(item: OrderItemPayload) {
@@ -102,6 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const staffName = body.staffName?.trim() ?? '';
   const notes = body.notes?.trim() ?? '';
   const items = body.items ?? [];
+  const orderType = body.order_type ?? 'dine_in';
 
   if (!staffName) {
     res.status(400).json({ error: 'Staff name is required' });
@@ -110,6 +117,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!isPaymentMethod(body.paymentMethod)) {
     res.status(400).json({ error: 'Invalid payment method' });
+    return;
+  }
+
+  if (!isOrderType(orderType)) {
+    res.status(400).json({ error: 'Invalid order type' });
     return;
   }
 
@@ -173,6 +185,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     p_subtotal: computedSubtotal,
     p_total: computedSubtotal,
     p_items: canonicalItems,
+    p_order_type: orderType,
   });
 
   if (error) {

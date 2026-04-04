@@ -28,6 +28,7 @@ export interface CartItem {
 
 export type PaymentMethod = 'cash' | 'card' | 'other';
 export type OrderStatus = 'live' | 'completed';
+export type OrderType = 'dine_in' | 'takeaway';
 
 export interface OrderItem {
   id: string;
@@ -39,6 +40,7 @@ export interface OrderItem {
   options: ProductOptions | null;
   line_total: number;
   created_at: string;
+  ready_at: string | null;
 }
 
 export interface Order {
@@ -47,6 +49,7 @@ export interface Order {
   created_at: string;
   completed_at?: string | null;
   status: OrderStatus;
+  order_type: OrderType;
   subtotal: number;
   total: number;
   payment_method: PaymentMethod;

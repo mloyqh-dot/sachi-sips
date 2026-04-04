@@ -4,6 +4,7 @@ import type {
   Product,
   CartItem,
   PaymentMethod,
+  OrderType,
   MilkOption,
   SugarOption,
   ProductOptions,
@@ -76,6 +77,7 @@ function formatOptionLabel(item: CartItem) {
 async function createOrder(payload: {
   p_staff_name: string;
   p_payment_method: PaymentMethod;
+  p_order_type: OrderType;
   p_notes: string | null;
   p_subtotal: number;
   p_total: number;
@@ -98,6 +100,7 @@ async function createOrder(payload: {
       body: JSON.stringify({
         staffName: payload.p_staff_name,
         paymentMethod: payload.p_payment_method,
+        order_type: payload.p_order_type,
         notes: payload.p_notes,
         subtotal: payload.p_subtotal,
         total: payload.p_total,
@@ -366,6 +369,24 @@ const s = {
     display: 'flex',
     gap: '0.375rem',
   },
+  orderTypeGroup: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  orderTypeBtn: (active: boolean) => ({
+    flex: 1,
+    padding: '9px 10px',
+    borderRadius: '999px',
+    border: `1px solid ${active ? '#682837' : 'rgba(104, 40, 55, 0.45)'}`,
+    background: active ? '#682837' : '#F0E4BF',
+    color: active ? '#FFFFFF' : '#52301A',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '12px',
+    fontWeight: active ? 600 : 500,
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+    letterSpacing: '0.01em',
+  }),
   paymentBtn: (active: boolean) => ({
     flex: 1,
     padding: '7px 4px',
@@ -573,6 +594,7 @@ const POSPage: React.FC = () => {
   const [selectedMilk, setSelectedMilk] = useState<MilkOption | null>(null);
   const [selectedSugar, setSelectedSugar] = useState<SugarOption | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [orderType, setOrderType] = useState<OrderType>('dine_in');
   const [staffName, setStaffName] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
@@ -692,6 +714,7 @@ const POSPage: React.FC = () => {
       const payload = {
         p_staff_name: staffName.trim(),
         p_payment_method: paymentMethod,
+        p_order_type: orderType,
         p_notes: notes.trim() || null,
         p_subtotal: total,
         p_total: total,
@@ -712,6 +735,7 @@ const POSPage: React.FC = () => {
       setCart([]);
       setNotes('');
       setPaymentMethod('cash');
+      setOrderType('dine_in');
       setLastSubmittedOrder(order as Pick<Order, 'ticket_number' | 'created_at' | 'total'>);
       if (isMobile) setMobileView('products');
     } catch (error) {
@@ -876,6 +900,24 @@ const POSPage: React.FC = () => {
         <div style={s.totalRow}>
           <span style={s.totalLabel}>Total</span>
           <span style={s.totalAmount}>${total.toFixed(2)}</span>
+        </div>
+
+        <div>
+          <label style={s.label}>Order Type</label>
+          <div style={s.orderTypeGroup}>
+            <button
+              style={s.orderTypeBtn(orderType === 'dine_in')}
+              onClick={() => setOrderType('dine_in')}
+            >
+              Dine In
+            </button>
+            <button
+              style={s.orderTypeBtn(orderType === 'takeaway')}
+              onClick={() => setOrderType('takeaway')}
+            >
+              Takeaway
+            </button>
+          </div>
         </div>
 
         <div>

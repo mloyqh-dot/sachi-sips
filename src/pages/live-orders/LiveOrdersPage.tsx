@@ -1,7 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { Order, OrderItem, OrderRecord } from '../../types';
+import { supabase } from '../../lib/supabase';
+import type { Category, Order, OrderItem, OrderRecord, Product } from '../../types';
 
 const POLL_INTERVAL_MS = 5000;
+const READY_GREEN = '#3a7d44';
+const STATION_CATEGORY_MAP = {
+  Hojicha: ['Matcha'],
+  Coffee: ['Coffee', 'Specials'],
+  Kitchen: ['Savory', 'Bakery'],
+} as const satisfies Record<string, Category[]>;
 
 const MILK_LABELS: Record<string, string> = {
   dairy: 'Dairy',
@@ -47,6 +54,45 @@ function normalizeOrder(order: OrderRecord): Order {
     ...order,
     items: order.order_items ?? [],
   };
+}
+
+function getOrderTypeLabel(orderType: Order['order_type']) {
+  return orderType === 'takeaway' ? 'Takeaway' : 'Dine In';
+}
+
+function getOrderTypeBadgeStyle(orderType: Order['order_type']) {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0.28rem 0.7rem',
+    borderRadius: '999px',
+    background: orderType === 'takeaway' ? 'rgba(255, 227, 115, 0.24)' : 'rgba(214, 229, 240, 0.72)',
+    border: orderType === 'takeaway' ? '1px solid rgba(210, 153, 45, 0.3)' : '1px solid rgba(101, 135, 160, 0.28)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    color: '#52301A',
+  } as const;
+}
+
+function getStationStatus(
+  order: Order,
+  stationName: keyof typeof STATION_CATEGORY_MAP,
+  productCategoryMap: Map<string, Category>
+) {
+  const categories = STATION_CATEGORY_MAP[stationName] as readonly Category[];
+  const stationItems = order.items.filter(item => {
+    const category = productCategoryMap.get(item.product_id);
+    return category ? categories.includes(category) : false;
+  });
+
+  if (stationItems.length === 0) {
+    return 'na' as const;
+  }
+
+  return stationItems.every(item => item.ready_at !== null) ? 'done' as const : 'pending' as const;
 }
 
 async function fetchLiveOrders() {
@@ -186,6 +232,11 @@ const s = {
     border: '1px solid rgba(104, 40, 55, 0.14)',
     boxShadow: '0 10px 28px rgba(82, 48, 26, 0.08)',
   },
+  readyCard: {
+    background: 'linear-gradient(180deg, rgba(58, 125, 68, 0.12) 0%, rgba(255, 252, 246, 0.96) 100%)',
+    border: '1px solid rgba(58, 125, 68, 0.38)',
+    boxShadow: '0 12px 30px rgba(58, 125, 68, 0.12)',
+  },
   cardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -196,6 +247,12 @@ const s = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '0.35rem',
+  },
+  ticketMetaRow: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    alignItems: 'center',
+    gap: '0.5rem',
   },
   ticketLabel: {
     fontFamily: "'Public Sans', sans-serif",
@@ -242,7 +299,22 @@ const s = {
     fontWeight: 700,
     letterSpacing: '0.06em',
     textTransform: 'uppercase' as const,
-    color: 'var(--color-green)',
+    color: READY_GREEN,
+  },
+  readyServeBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0.34rem 0.78rem',
+    borderRadius: '999px',
+    background: 'rgba(58, 125, 68, 0.14)',
+    border: '1px solid rgba(58, 125, 68, 0.28)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '0.05em',
+    textTransform: 'uppercase' as const,
+    color: READY_GREEN,
   },
   notesBlock: {
     display: 'flex',
@@ -315,6 +387,33 @@ const s = {
     color: 'var(--color-brown)',
     opacity: 0.78,
   },
+  stationRow: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: '0.5rem',
+  },
+  stationChip: (status: 'done' | 'pending' | 'na') => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0.42rem 0.72rem',
+    borderRadius: '999px',
+    border: status === 'done'
+      ? '1px solid rgba(58, 125, 68, 0.28)'
+      : status === 'pending'
+        ? '1px solid rgba(104, 40, 55, 0.16)'
+        : '1px solid rgba(82, 48, 26, 0.12)',
+    background: status === 'done'
+      ? 'rgba(58, 125, 68, 0.12)'
+      : status === 'pending'
+        ? 'rgba(240, 228, 191, 0.5)'
+        : 'rgba(82, 48, 26, 0.06)',
+    color: status === 'done' ? READY_GREEN : status === 'pending' ? '#682837' : 'rgba(82, 48, 26, 0.56)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '0.02em',
+  }),
   actions: {
     display: 'flex',
     flexDirection: 'column' as const,
@@ -351,6 +450,7 @@ const s = {
 
 const LiveOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -399,6 +499,24 @@ const LiveOrdersPage: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      const { data } = await supabase
+        .from('products')
+        .select('id, name, price, category, subcategory, sort_order, is_available');
+
+      if (!active) return;
+
+      setProducts(data ?? []);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   async function handleCompleteOrder(order: Order) {
     if (completingOrderIds[order.id]) return;
 
@@ -428,6 +546,8 @@ const LiveOrdersPage: React.FC = () => {
     }
   }
 
+  const productCategoryMap = new Map(products.map(product => [product.id, product.category]));
+
   return (
     <div style={s.page}>
       <div style={s.shell}>
@@ -456,14 +576,21 @@ const LiveOrdersPage: React.FC = () => {
 
         {!loading && !error && orders.length > 0 && (
           <section style={s.grid}>
-            {orders.map(order => (
-              <article key={order.id} style={s.card}>
+            {orders.map(order => {
+              const isFullyReady = order.items.every(item => item.ready_at !== null);
+
+              return (
+              <article key={order.id} style={isFullyReady ? { ...s.card, ...s.readyCard } : s.card}>
                 <div style={s.cardHeader}>
                   <div style={s.ticketBlock}>
                     <span style={s.ticketLabel}>Order Number</span>
-                    <span style={s.ticketNumber}>{order.ticket_number}</span>
+                    <div style={s.ticketMetaRow}>
+                      <span style={s.ticketNumber}>{order.ticket_number}</span>
+                      <span style={getOrderTypeBadgeStyle(order.order_type)}>{getOrderTypeLabel(order.order_type)}</span>
+                    </div>
                   </div>
                   <div style={s.metaBlock}>
+                    {isFullyReady && <span style={s.readyServeBadge}>Ready to Serve</span>}
                     <span style={s.statusBadge}>{order.status}</span>
                     <span style={s.timeText}>{formatCreatedTime(order.created_at)}</span>
                     <span style={s.subTimeText}>{formatCreatedDateTime(order.created_at)}</span>
@@ -493,6 +620,22 @@ const LiveOrdersPage: React.FC = () => {
                   })}
                 </div>
 
+                <div>
+                  <span style={s.sectionLabel}>Station Status</span>
+                  <div style={s.stationRow}>
+                    {(Object.keys(STATION_CATEGORY_MAP) as Array<keyof typeof STATION_CATEGORY_MAP>).map(stationName => {
+                      const status = getStationStatus(order, stationName, productCategoryMap);
+                      const label = status === 'done' ? 'Done' : status === 'pending' ? 'Pending' : 'N/A';
+
+                      return (
+                        <span key={stationName} style={s.stationChip(status)}>
+                          {stationName} {label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div style={s.actions}>
                   <button
                     type="button"
@@ -508,7 +651,7 @@ const LiveOrdersPage: React.FC = () => {
                   {orderErrors[order.id] && <span style={s.inlineError}>{orderErrors[order.id]}</span>}
                 </div>
               </article>
-            ))}
+            )})}
           </section>
         )}
       </div>
