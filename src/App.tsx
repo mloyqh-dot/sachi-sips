@@ -1,9 +1,13 @@
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import type { NavLinkRenderProps } from 'react-router-dom';
 import POSPage from './pages/pos/POSPage';
 import ReceiptsPage from './pages/receipts/ReceiptsPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import LiveOrdersPage from './pages/live-orders/LiveOrdersPage';
+import HojichaStationPage from './pages/stations/HojichaStationPage';
+import CoffeeStationPage from './pages/stations/CoffeeStationPage';
+import KitchenStationPage from './pages/stations/KitchenStationPage';
 
 function navLinkStyle({ isActive }: NavLinkRenderProps): React.CSSProperties {
   return {
@@ -20,9 +24,28 @@ function navLinkStyle({ isActive }: NavLinkRenderProps): React.CSSProperties {
   };
 }
 
-function App() {
+function AppShell() {
+  const location = useLocation();
+  const [isStationsOpen, setIsStationsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const isStationsActive = location.pathname.startsWith('/stations/');
+
+  useEffect(() => {
+    function handleDocumentMouseDown(event: MouseEvent) {
+      if (!dropdownRef.current?.contains(event.target as Node)) {
+        setIsStationsOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown);
+    };
+  }, []);
+
   return (
-    <BrowserRouter>
+    <>
       <nav style={{
         display: 'flex',
         alignItems: 'center',
@@ -45,6 +68,44 @@ function App() {
         <div style={{ display: 'flex', gap: '0.125rem', alignItems: 'center' }}>
           <NavLink to="/" end style={navLinkStyle}>POS</NavLink>
           <NavLink to="/live-orders" style={navLinkStyle}>Live Orders</NavLink>
+          <div ref={dropdownRef} style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setIsStationsOpen(current => !current)}
+              style={{
+                ...navLinkStyle({ isActive: isStationsActive, isPending: false, isTransitioning: false }),
+                border: 'none',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+              }}
+            >
+              Stations
+              <span style={{ fontSize: '10px', lineHeight: 1 }}>{isStationsOpen ? '▲' : '▼'}</span>
+            </button>
+            {isStationsOpen && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 0.5rem)',
+                left: 0,
+                minWidth: '160px',
+                padding: '0.45rem',
+                borderRadius: '18px',
+                background: '#F0E4BF',
+                border: '1px solid rgba(104, 40, 55, 0.12)',
+                boxShadow: '0 12px 28px rgba(82, 48, 26, 0.14)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.2rem',
+                zIndex: 20,
+              }}>
+                <NavLink to="/stations/hojicha" style={navLinkStyle} onClick={() => setIsStationsOpen(false)}>Hojicha</NavLink>
+                <NavLink to="/stations/coffee" style={navLinkStyle} onClick={() => setIsStationsOpen(false)}>Coffee</NavLink>
+                <NavLink to="/stations/kitchen" style={navLinkStyle} onClick={() => setIsStationsOpen(false)}>Kitchen</NavLink>
+              </div>
+            )}
+          </div>
           <NavLink to="/receipts" style={navLinkStyle}>Receipts</NavLink>
           <NavLink to="/dashboard" style={navLinkStyle}>Dashboard</NavLink>
         </div>
@@ -53,10 +114,21 @@ function App() {
         <Routes>
           <Route path="/" element={<POSPage />} />
           <Route path="/live-orders" element={<LiveOrdersPage />} />
+          <Route path="/stations/hojicha" element={<HojichaStationPage />} />
+          <Route path="/stations/coffee" element={<CoffeeStationPage />} />
+          <Route path="/stations/kitchen" element={<KitchenStationPage />} />
           <Route path="/receipts" element={<ReceiptsPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
         </Routes>
       </main>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppShell />
     </BrowserRouter>
   );
 }
