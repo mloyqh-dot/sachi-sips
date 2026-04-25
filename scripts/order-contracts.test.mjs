@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 
 const apiOrders = readFileSync(new URL('../api/orders.ts', import.meta.url), 'utf8');
 const apiOrdersHistory = readFileSync(new URL('../api/orders-history.ts', import.meta.url), 'utf8');
+const apiDonations = readFileSync(new URL('../api/donations.ts', import.meta.url), 'utf8');
+const apiDonationsHistory = readFileSync(new URL('../api/donations-history.ts', import.meta.url), 'utf8');
+const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const posPage = readFileSync(new URL('../src/pages/pos/POSPage.tsx', import.meta.url), 'utf8');
 const dashboardPage = readFileSync(new URL('../src/pages/dashboard/DashboardPage.tsx', import.meta.url), 'utf8');
+const donationsPage = readFileSync(new URL('../src/pages/donations/DonationsPage.tsx', import.meta.url), 'utf8');
 const receiptsPage = readFileSync(new URL('../src/pages/receipts/ReceiptsPage.tsx', import.meta.url), 'utf8');
 const stationApi = readFileSync(new URL('../api/mark-station-ready.ts', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
@@ -42,9 +46,45 @@ assert.match(
 );
 
 assert.match(
+  apiDonations,
+  /\.from\('donations'\)/,
+  'api/donations.ts should create standalone donation records'
+);
+
+assert.match(
+  apiDonations,
+  /amount\s*<=\s*0/,
+  'api/donations.ts should reject non-positive donation amounts'
+);
+
+assert.match(
+  apiDonationsHistory,
+  /\.from\('donations'\)/,
+  'api/donations-history.ts should read standalone donation records for dashboard reporting'
+);
+
+assert.match(
+  app,
+  /DonationsPage|\/donations/,
+  'App should expose a standalone Donations page'
+);
+
+assert.match(
+  donationsPage,
+  /Record Donation|createDonation|paymentMethod|staffName/,
+  'DonationsPage should record custom-amount donations with payment method and staff attribution'
+);
+
+assert.match(
   dashboardPage,
   /fetchCompletedOrders/,
   'DashboardPage should load completed order history'
+);
+
+assert.match(
+  dashboardPage,
+  /fetchDonations|donationTotal|Combined Collected/,
+  'DashboardPage should include donation totals separately from sales revenue'
 );
 
 assert.match(
@@ -71,7 +111,7 @@ assert.doesNotMatch(
   'ReceiptsPage should not remain a stub'
 );
 
-for (const apiPath of ['/api/orders', '/api/orders-history', '/api/live-orders', '/api/complete-order', '/api/mark-station-ready']) {
+for (const apiPath of ['/api/orders', '/api/orders-history', '/api/donations', '/api/donations-history', '/api/live-orders', '/api/complete-order', '/api/mark-station-ready']) {
   assert.match(
     viteConfig,
     new RegExp(apiPath.replace(/\//g, '\\/')),

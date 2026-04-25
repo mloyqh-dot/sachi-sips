@@ -4,6 +4,7 @@ import type { NavLinkRenderProps } from 'react-router-dom';
 import POSPage from './pages/pos/POSPage';
 import ReceiptsPage from './pages/receipts/ReceiptsPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
+import DonationsPage from './pages/donations/DonationsPage';
 import MerchPage from './pages/merch/MerchPage';
 import LiveOrdersPage from './pages/live-orders/LiveOrdersPage';
 import HojichaStationPage from './pages/stations/HojichaStationPage';
@@ -108,6 +109,7 @@ function AppShell() {
             )}
           </div>
           <NavLink to="/receipts" style={navLinkStyle}>Receipts</NavLink>
+          <NavLink to="/donations" style={navLinkStyle}>Donations</NavLink>
           <NavLink to="/dashboard" style={navLinkStyle}>Dashboard</NavLink>
           <NavLink to="/merch" style={navLinkStyle}>Merch</NavLink>
         </div>
@@ -120,6 +122,7 @@ function AppShell() {
           <Route path="/stations/coffee" element={<CoffeeStationPage />} />
           <Route path="/stations/kitchen" element={<KitchenStationPage />} />
           <Route path="/receipts" element={<ReceiptsPage />} />
+          <Route path="/donations" element={<DonationsPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/merch" element={<MerchPage />} />
         </Routes>

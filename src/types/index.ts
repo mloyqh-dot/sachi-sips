@@ -82,6 +82,22 @@ export interface OrderRecord extends Omit<Order, 'items'> {
   order_items: OrderItem[];
 }
 
+export interface Donation {
+  id: string;
+  created_at: string;
+  amount: number;
+  payment_method: PaymentMethod;
+  staff_name: string;
+  note: string | null;
+}
+
+export interface DonationPayload {
+  amount: number;
+  payment_method: PaymentMethod;
+  staff_name: string;
+  note?: string | null;
+}
+
 export interface Transaction {
   id: string;
   created_at: string;
