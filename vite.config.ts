@@ -95,6 +95,7 @@ function localApiPlugin(): Plugin {
     name: 'sachi-sips-local-api',
     configureServer(server) {
       server.middlewares.use('/api/orders', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/orders'))))
+      server.middlewares.use('/api/orders-history', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/orders-history'))))
       server.middlewares.use('/api/live-orders', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/live-orders'))))
       server.middlewares.use('/api/complete-order', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/complete-order'))))
       server.middlewares.use('/api/mark-station-ready', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/mark-station-ready'))))

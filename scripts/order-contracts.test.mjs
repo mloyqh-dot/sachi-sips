@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 
 const apiOrders = readFileSync(new URL('../api/orders.ts', import.meta.url), 'utf8');
+const apiOrdersHistory = readFileSync(new URL('../api/orders-history.ts', import.meta.url), 'utf8');
 const posPage = readFileSync(new URL('../src/pages/pos/POSPage.tsx', import.meta.url), 'utf8');
+const dashboardPage = readFileSync(new URL('../src/pages/dashboard/DashboardPage.tsx', import.meta.url), 'utf8');
+const receiptsPage = readFileSync(new URL('../src/pages/receipts/ReceiptsPage.tsx', import.meta.url), 'utf8');
 const stationApi = readFileSync(new URL('../api/mark-station-ready.ts', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
 
@@ -32,7 +35,43 @@ assert.doesNotMatch(
   'api/mark-station-ready.ts should not use old menu category names'
 );
 
-for (const apiPath of ['/api/orders', '/api/live-orders', '/api/complete-order', '/api/mark-station-ready']) {
+assert.match(
+  apiOrdersHistory,
+  /\.eq\('status', 'completed'\)/,
+  'api/orders-history.ts should query completed orders only for owner reporting'
+);
+
+assert.match(
+  dashboardPage,
+  /fetchCompletedOrders/,
+  'DashboardPage should load completed order history'
+);
+
+assert.match(
+  dashboardPage,
+  /sortConfig|filteredOrders|paymentFilter/,
+  'DashboardPage should expose sortable and filterable order investigation'
+);
+
+assert.doesNotMatch(
+  dashboardPage,
+  /TODO: Show sales dashboard/,
+  'DashboardPage should not remain a stub'
+);
+
+assert.match(
+  receiptsPage,
+  /fetchCompletedOrders/,
+  'ReceiptsPage should load completed order history'
+);
+
+assert.doesNotMatch(
+  receiptsPage,
+  /TODO: Display list of receipts/,
+  'ReceiptsPage should not remain a stub'
+);
+
+for (const apiPath of ['/api/orders', '/api/orders-history', '/api/live-orders', '/api/complete-order', '/api/mark-station-ready']) {
   assert.match(
     viteConfig,
     new RegExp(apiPath.replace(/\//g, '\\/')),
