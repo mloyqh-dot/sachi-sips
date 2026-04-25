@@ -23,8 +23,8 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const STATION_CATEGORIES: Record<Station, string[]> = {
   hojicha: ['Matcha'],
-  coffee: ['Coffee', 'Specials'],
-  kitchen: ['Savory', 'Bakery'],
+  coffee: ['Filter Coffee', 'Mocktail'],
+  kitchen: ['Bites', 'Bakes'],
 };
 
 function isUuid(value: string) {

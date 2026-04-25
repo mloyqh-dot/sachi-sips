@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import { CATEGORY_META, CATEGORY_ORDER } from '../../lib/constants';
 import type {
   Product,
   CartItem,
+  CartEntry,
+  BestieSetCartItem,
+  BestieSetSubItem,
   PaymentMethod,
   OrderType,
   MilkOption,
@@ -14,29 +18,6 @@ import type {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const PRODUCT_BTN_BG = 'rgba(255, 255, 255, 0.58)';
-const CATEGORY_ORDER = ['Matcha', 'Coffee', 'Specials', 'Savory', 'Bakery'] as const;
-const CATEGORY_META = {
-  Matcha: {
-    label: 'Matcha & Hojicha Lattes',
-    description: 'Signature tea drinks and fruit-led matcha blends.',
-  },
-  Coffee: {
-    label: 'Specialty Coffee',
-    description: 'Single-origin pours served hot or iced.',
-  },
-  Specials: {
-    label: 'Featured Drinks',
-    description: 'Flights and limited-format pours for curious guests.',
-  },
-  Savory: {
-    label: 'Savory Bites',
-    description: 'Quick hot snacks suited for event service.',
-  },
-  Bakery: {
-    label: 'Bakery & Sweets',
-    description: 'Pastries and small baked treats.',
-  },
-} as const;
 const MILK_OPTIONS: { value: MilkOption; label: string }[] = [
   { value: 'dairy', label: 'Dairy' },
   { value: 'oat', label: 'Oat' },
@@ -48,11 +29,16 @@ const SUGAR_OPTIONS: { value: SugarOption; label: string }[] = [
   { value: 'more_sweet', label: 'More Sweet' },
 ];
 
+function isPostcard(product: Product) {
+  return product.name === "Sachi's Postcard";
+}
+
 function isCustomizable(product: Product) {
   return (
     /matcha latte|hojicha latte/i.test(product.name) ||
-    product.category === 'Coffee' ||
-    product.category === 'Specials'
+    product.category === 'Filter Coffee' ||
+    product.category === 'Mocktail' ||
+    isPostcard(product)
   );
 }
 
@@ -64,10 +50,15 @@ function optionsMatch(a?: ProductOptions, b?: ProductOptions) {
   return a?.milk === b?.milk && a?.sugar === b?.sugar;
 }
 
+function isBestieSetCartItem(item: CartEntry): item is BestieSetCartItem {
+  return 'type' in item && item.type === 'bestie_set';
+}
+
 function getCartItemKey(item: CartItem) {
   const milk = item.options?.milk ?? 'none';
   const sugar = item.options?.sugar ?? 'none';
-  return `${item.product_id}::${milk}::${sugar}`;
+  const setLabel = item.setLabel ?? 'none';
+  return `${item.product_id}::${milk}::${sugar}::${setLabel}`;
 }
 
 function formatOptionLabel(item: CartItem) {
@@ -76,6 +67,53 @@ function formatOptionLabel(item: CartItem) {
   const milkLabel = MILK_OPTIONS.find(option => option.value === item.options?.milk)?.label;
   const sugarLabel = SUGAR_OPTIONS.find(option => option.value === item.options?.sugar)?.label;
   return [milkLabel, sugarLabel].filter(Boolean).join(' · ');
+}
+
+function formatSubItemOptions(item: BestieSetSubItem) {
+  if (!item.options) return item.name;
+
+  const milkLabel = MILK_OPTIONS.find(option => option.value === item.options?.milk)?.label;
+  const sugarLabel = SUGAR_OPTIONS.find(option => option.value === item.options?.sugar)?.label;
+  const optionLabel = [milkLabel, sugarLabel].filter(Boolean).join(' - ');
+  return optionLabel ? `${item.name} (${optionLabel})` : item.name;
+}
+
+function roundPrice(value: number) {
+  return Math.round(Math.max(0, value) * 100) / 100;
+}
+
+function explodeCartEntries(entries: CartEntry[]): CartItem[] {
+  return entries.flatMap(entry => {
+    if (!isBestieSetCartItem(entry)) return [entry];
+
+    const total = entry.drink1.price + entry.drink2.price + entry.bite.price;
+    const p1 = total > 0 ? Math.round((entry.setPrice * entry.drink1.price / total) * 100) / 100 : 0;
+    const p2 = total > 0 ? Math.round((entry.setPrice * entry.drink2.price / total) * 100) / 100 : 0;
+    const p3 = Math.round((entry.setPrice - p1 - p2) * 100) / 100;
+
+    return [
+      {
+        product_id: entry.drink1.product_id,
+        name: entry.drink1.name,
+        price: p1,
+        options: entry.drink1.options,
+        quantity: 1,
+      },
+      {
+        product_id: entry.drink2.product_id,
+        name: entry.drink2.name,
+        price: p2,
+        options: entry.drink2.options,
+        quantity: 1,
+      },
+      {
+        product_id: entry.bite.product_id,
+        name: entry.bite.name,
+        price: p3,
+        quantity: 1,
+      },
+    ];
+  });
 }
 
 async function createOrder(payload: {
@@ -93,41 +131,33 @@ async function createOrder(payload: {
     options?: ProductOptions;
   }>;
 }) {
-  const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const response = await fetch('/api/orders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      staffName: payload.p_staff_name,
+      paymentMethod: payload.p_payment_method,
+      order_type: payload.p_order_type,
+      notes: payload.p_notes,
+      subtotal: payload.p_subtotal,
+      total: payload.p_total,
+      items: payload.p_items,
+    }),
+  });
 
-  if (!isLocalDev) {
-    const response = await fetch('/api/orders', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        staffName: payload.p_staff_name,
-        paymentMethod: payload.p_payment_method,
-        order_type: payload.p_order_type,
-        notes: payload.p_notes,
-        subtotal: payload.p_subtotal,
-        total: payload.p_total,
-        items: payload.p_items,
-      }),
-    });
+  const result = await response.json().catch(() => null) as { error?: string; order?: unknown } | null;
 
-    const result = await response.json().catch(() => null) as { error?: string; order?: unknown } | null;
-
-    if (!response.ok) {
-      throw new Error(result?.error || 'Unable to create order');
-    }
-
-    return result?.order;
+  if (!response.ok) {
+    throw new Error(result?.error || 'Unable to create order');
   }
 
-  const { data, error } = await supabase.rpc('create_order', payload);
-
-  if (error) {
-    throw new Error(error.message || 'Unable to create order');
+  if (!result?.order) {
+    throw new Error('Order API did not return an order. Run the app with the Vercel API available for checkout.');
   }
 
-  return Array.isArray(data) ? data[0] : data;
+  return result.order;
 }
 
 const s = {
@@ -240,6 +270,31 @@ const s = {
     color: 'var(--color-pink)',
     fontWeight: 600,
   },
+  bestieSetBtn: {
+    width: '100%',
+    marginBottom: '1rem',
+    padding: '0.95rem 1rem',
+    borderRadius: '18px',
+    border: '1px solid rgba(104, 40, 55, 0.18)',
+    background: '#682837',
+    color: '#F0E4BF',
+    fontFamily: "'Alice', serif",
+    fontSize: '22px',
+    cursor: 'pointer',
+    boxShadow: '0 8px 20px rgba(104, 40, 55, 0.18)',
+  },
+  setBtn: {
+    marginTop: '0.35rem',
+    padding: '6px 8px',
+    borderRadius: '999px',
+    border: '1px solid rgba(104, 40, 55, 0.18)',
+    background: '#F0E4BF',
+    color: '#682837',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '12px',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
   // Cart panel
   cartPanel: {
     width: '320px',
@@ -320,6 +375,51 @@ const s = {
     minWidth: '44px',
     textAlign: 'right' as const,
     opacity: 0.8,
+  },
+  cartPriceBtn: {
+    border: 'none',
+    background: 'transparent',
+    color: 'var(--color-brown)',
+    cursor: 'pointer',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '13px',
+    padding: '2px 0',
+    minWidth: '58px',
+    textAlign: 'right' as const,
+  },
+  cartPriceInput: {
+    width: '66px',
+    padding: '4px 6px',
+    borderRadius: '8px',
+    border: '1px solid rgba(104, 40, 55, 0.2)',
+    background: 'rgba(255, 255, 255, 0.72)',
+    color: 'var(--color-burgundy)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '12px',
+    boxSizing: 'border-box' as const,
+  },
+  bestieCartItem: {
+    margin: '0.35rem 1rem',
+    padding: '0.75rem',
+    borderRadius: '16px',
+    border: '1px solid rgba(104, 40, 55, 0.14)',
+    background: 'rgba(240, 228, 191, 0.42)',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '0.5rem',
+  },
+  bestieCartHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  bestieSubItem: {
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '11px',
+    color: 'var(--color-brown)',
+    opacity: 0.75,
+    lineHeight: 1.4,
   },
   cartFooter: {
     borderTop: '1px solid rgba(104, 40, 55, 0.12)',
@@ -593,10 +693,19 @@ const s = {
 
 const POSPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartEntry[]>([]);
   const [customizingProduct, setCustomizingProduct] = useState<Product | null>(null);
   const [selectedMilk, setSelectedMilk] = useState<MilkOption | null>(null);
   const [selectedSugar, setSelectedSugar] = useState<SugarOption | null>(null);
+  const [selectedPostcardVariant, setSelectedPostcardVariant] = useState<'bw' | 'colour' | null>(null);
+  const [makingSetForProduct, setMakingSetForProduct] = useState<CartItem | null>(null);
+  const [bestieSetStep, setBestieSetStep] = useState<0 | 1 | 2 | 3>(0);
+  const [bestieSetDraft, setBestieSetDraft] = useState<Partial<BestieSetCartItem>>({ type: 'bestie_set' });
+  const [bestieCustomizingProduct, setBestieCustomizingProduct] = useState<Product | null>(null);
+  const [bestieSelectedMilk, setBestieSelectedMilk] = useState<MilkOption | null>(null);
+  const [bestieSelectedSugar, setBestieSelectedSugar] = useState<SugarOption | null>(null);
+  const [editingPriceKey, setEditingPriceKey] = useState<string | null>(null);
+  const [editingPriceValue, setEditingPriceValue] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [orderType, setOrderType] = useState<OrderType>('dine_in');
   const [staffName, setStaffName] = useState('');
@@ -634,11 +743,15 @@ const POSPage: React.FC = () => {
     setLastSubmittedOrder(null);
     setCart(prev => {
       const idx = prev.findIndex(existing =>
-        existing.product_id === item.product_id && optionsMatch(existing.options, item.options)
+        !isBestieSetCartItem(existing) &&
+        existing.product_id === item.product_id &&
+        existing.setLabel === item.setLabel &&
+        optionsMatch(existing.options, item.options)
       );
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
+        const existing = next[idx];
+        next[idx] = isBestieSetCartItem(existing) ? existing : { ...existing, quantity: existing.quantity + 1 };
         return next;
       }
       return [...prev, { ...item, quantity: 1 }];
@@ -650,6 +763,7 @@ const POSPage: React.FC = () => {
     setCustomizingProduct(null);
     setSelectedMilk(null);
     setSelectedSugar(null);
+    setSelectedPostcardVariant(null);
   }, []);
 
   const addToCart = useCallback((product: Product) => {
@@ -668,35 +782,167 @@ const POSPage: React.FC = () => {
   }, [commitCartItem]);
 
   const confirmCustomization = useCallback(() => {
-    if (!customizingProduct || !selectedMilk || !selectedSugar) return;
+    if (!customizingProduct) return;
 
+    if (isPostcard(customizingProduct)) {
+      if (!selectedPostcardVariant) return;
+      commitCartItem({
+        product_id: customizingProduct.id,
+        name: customizingProduct.name,
+        price: selectedPostcardVariant === 'colour' ? 2.50 : 2.00,
+        setLabel: selectedPostcardVariant === 'colour' ? 'Colour' : 'B&W',
+      });
+      closeCustomization();
+      return;
+    }
+
+    if (!selectedMilk || !selectedSugar) return;
     commitCartItem({
       product_id: customizingProduct.id,
       name: customizingProduct.name,
       price: customizingProduct.price,
-      options: {
-        milk: selectedMilk,
-        sugar: selectedSugar,
-      },
+      options: { milk: selectedMilk, sugar: selectedSugar },
     });
     closeCustomization();
-  }, [closeCustomization, commitCartItem, customizingProduct, selectedMilk, selectedSugar]);
+  }, [closeCustomization, commitCartItem, customizingProduct, selectedMilk, selectedSugar, selectedPostcardVariant]);
 
   const updateQty = useCallback((itemKey: string, delta: number) => {
     setLastSubmittedOrder(null);
     setCart(prev =>
       prev
-        .map(i => getCartItemKey(i) === itemKey ? { ...i, quantity: i.quantity + delta } : i)
-        .filter(i => i.quantity > 0)
+        .map(i => !isBestieSetCartItem(i) && getCartItemKey(i) === itemKey ? { ...i, quantity: i.quantity + delta } : i)
+        .filter(i => isBestieSetCartItem(i) || i.quantity > 0)
     );
   }, []);
 
+  const handleMakeSet = useCallback((product: Product) => {
+    setLastSubmittedOrder(null);
+    const existing = cart.find(item => !isBestieSetCartItem(item) && item.product_id === product.id);
+    const targetItem: CartItem = existing && !isBestieSetCartItem(existing)
+      ? existing
+      : {
+        product_id: product.id,
+        name: product.name,
+        price: product.price,
+        quantity: 1,
+      };
+
+    setCart(prev => {
+      if (existing) return prev;
+      return [...prev, targetItem];
+    });
+
+    setMakingSetForProduct(targetItem);
+    if (isMobile) setMobileView('cart');
+  }, [cart, isMobile]);
+
+  const addMakeItASetBite = useCallback((product: Product) => {
+    commitCartItem({
+      product_id: product.id,
+      name: product.name,
+      price: 3.50,
+      setLabel: 'Make it a Set',
+    });
+    setMakingSetForProduct(null);
+  }, [commitCartItem]);
+
+  const closeBestieSet = useCallback(() => {
+    setBestieSetStep(0);
+    setBestieSetDraft({ type: 'bestie_set' });
+    setBestieCustomizingProduct(null);
+    setBestieSelectedMilk(null);
+    setBestieSelectedSugar(null);
+  }, []);
+
+  const productToBestieSubItem = useCallback((product: Product, options?: ProductOptions): BestieSetSubItem => ({
+    product_id: product.id,
+    name: product.name,
+    price: product.price,
+    category: product.category,
+    options,
+  }), []);
+
+  const commitBestieDrink = useCallback((product: Product, options?: ProductOptions) => {
+    const subItem = productToBestieSubItem(product, options);
+    setBestieSetDraft(prev => {
+      if (bestieSetStep === 1) return { ...prev, drink1: subItem };
+      return { ...prev, drink2: subItem };
+    });
+    setBestieSetStep(bestieSetStep === 1 ? 2 : 3);
+    setBestieCustomizingProduct(null);
+    setBestieSelectedMilk(null);
+    setBestieSelectedSugar(null);
+  }, [bestieSetStep, productToBestieSubItem]);
+
+  const selectBestieDrink = useCallback((product: Product) => {
+    if (isCustomizable(product)) {
+      setBestieCustomizingProduct(product);
+      setBestieSelectedMilk(null);
+      setBestieSelectedSugar(null);
+      return;
+    }
+
+    commitBestieDrink(product);
+  }, [commitBestieDrink]);
+
+  const confirmBestieCustomization = useCallback(() => {
+    if (!bestieCustomizingProduct || !bestieSelectedMilk || !bestieSelectedSugar) return;
+
+    commitBestieDrink(bestieCustomizingProduct, {
+      milk: bestieSelectedMilk,
+      sugar: bestieSelectedSugar,
+    });
+  }, [bestieCustomizingProduct, bestieSelectedMilk, bestieSelectedSugar, commitBestieDrink]);
+
+  const completeBestieSet = useCallback((product: Product) => {
+    if (!bestieSetDraft.drink1 || !bestieSetDraft.drink2) return;
+
+    const setItem: BestieSetCartItem = {
+      type: 'bestie_set',
+      cartKey: `bestie_set::${Date.now()}`,
+      setPrice: 18,
+      drink1: bestieSetDraft.drink1,
+      drink2: bestieSetDraft.drink2,
+      bite: productToBestieSubItem(product),
+    };
+
+    setLastSubmittedOrder(null);
+    setCart(prev => [...prev, setItem]);
+    closeBestieSet();
+    if (isMobile) setMobileView('cart');
+  }, [bestieSetDraft.drink1, bestieSetDraft.drink2, closeBestieSet, isMobile, productToBestieSubItem]);
+
+  const updateCartEntryPrice = useCallback((itemKey: string, price: number) => {
+    setLastSubmittedOrder(null);
+    setCart(prev => prev.map(item => {
+      if (isBestieSetCartItem(item)) {
+        return item.cartKey === itemKey ? { ...item, setPrice: price } : item;
+      }
+      return getCartItemKey(item) === itemKey ? { ...item, price } : item;
+    }));
+  }, []);
+
+  const commitEditedPrice = useCallback((itemKey: string, quantity = 1) => {
+    const parsed = Number.parseFloat(editingPriceValue);
+    const nextPrice = Number.isFinite(parsed) ? parsed / quantity : 0;
+    updateCartEntryPrice(itemKey, roundPrice(nextPrice));
+    setEditingPriceKey(null);
+    setEditingPriceValue('');
+  }, [editingPriceValue, updateCartEntryPrice]);
+
   // Derived
-  const total = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
+  const total = cart.reduce((sum, i) => sum + (isBestieSetCartItem(i) ? i.setPrice : i.price * i.quantity), 0);
+  const cartCount = cart.reduce((sum, i) => sum + (isBestieSetCartItem(i) ? 1 : i.quantity), 0);
   const canSubmit = cart.length > 0 && staffName.trim().length > 0 && !submitting;
-  const canConfirmCustomization = Boolean(selectedMilk && selectedSugar);
+  const canConfirmCustomization = customizingProduct && isPostcard(customizingProduct)
+    ? selectedPostcardVariant !== null
+    : Boolean(selectedMilk && selectedSugar);
   const dairyDisabled = customizingProduct ? isOatOnlyLatte(customizingProduct) : false;
+  const canConfirmBestieCustomization = Boolean(bestieSelectedMilk && bestieSelectedSugar);
+  const bestieDairyDisabled = bestieCustomizingProduct ? isOatOnlyLatte(bestieCustomizingProduct) : false;
+  const makeItASetBites = products.filter(product => product.category === 'Bites');
+  const bestieDrinkProducts = products.filter(product => product.category === 'Matcha' || product.category === 'Filter Coffee');
+  const bestieBiteProducts = products.filter(product => product.category === 'Bites');
 
   const grouped = products.reduce<Record<string, Record<string, Product[]>>>((acc, p) => {
     const subcategory = p.subcategory?.trim() || 'Menu';
@@ -715,14 +961,16 @@ const POSPage: React.FC = () => {
     setSubmitting(true);
 
     try {
+      const orderItems = explodeCartEntries(cart);
+      const orderTotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const payload = {
         p_staff_name: staffName.trim(),
         p_payment_method: paymentMethod,
         p_order_type: orderType,
         p_notes: notes.trim() || null,
-        p_subtotal: total,
-        p_total: total,
-        p_items: cart.map(item => ({
+        p_subtotal: orderTotal,
+        p_total: orderTotal,
+        p_items: orderItems.map(item => ({
           product_id: item.product_id,
           name: item.name,
           quantity: item.quantity,
@@ -751,11 +999,58 @@ const POSPage: React.FC = () => {
 
   // ── Render helpers ──────────────────────────────────────────────────────────
 
+  const renderEditablePrice = (itemKey: string, value: number, quantity = 1) => (
+    editingPriceKey === itemKey ? (
+      <input
+        style={s.cartPriceInput}
+        type="number"
+        min="0"
+        step="0.01"
+        value={editingPriceValue}
+        autoFocus
+        onChange={e => setEditingPriceValue(e.target.value)}
+        onBlur={() => commitEditedPrice(itemKey, quantity)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') commitEditedPrice(itemKey, quantity);
+          if (e.key === 'Escape') {
+            setEditingPriceKey(null);
+            setEditingPriceValue('');
+          }
+        }}
+      />
+    ) : (
+      <button
+        style={s.cartPriceBtn}
+        onClick={() => {
+          setEditingPriceKey(itemKey);
+          setEditingPriceValue(value.toFixed(2));
+        }}
+        aria-label="Edit price"
+      >
+        ${value.toFixed(2)} ✎
+      </button>
+    )
+  );
+
   const productPanel = (
     <div style={s.productPanel}>
       {loading && <p style={{ color: 'var(--color-brown)', opacity: 0.6, fontFamily: "'Public Sans', sans-serif", fontSize: '14px' }}>Loading menu…</p>}
       {!loading && products.length === 0 && (
         <p style={{ color: 'var(--color-brown)', opacity: 0.6, fontFamily: "'Public Sans', sans-serif", fontSize: '14px' }}>No available products. Add some in Supabase.</p>
+      )}
+      {!loading && products.length > 0 && (
+        <button
+          style={s.bestieSetBtn}
+          onClick={() => {
+            setBestieSetStep(1);
+            setBestieSetDraft({ type: 'bestie_set' });
+            setBestieCustomizingProduct(null);
+            setBestieSelectedMilk(null);
+            setBestieSelectedSugar(null);
+          }}
+        >
+          Bestie Set - $18
+        </button>
       )}
       <div style={s.categoryList}>
         {CATEGORY_ORDER.filter(category => grouped[category]).map(category => (
@@ -770,24 +1065,28 @@ const POSPage: React.FC = () => {
                 <div style={s.subcategoryHeading}>{subcategory}</div>
                 <div style={s.productGrid}>
                   {items.map(p => (
-                    <button
-                      key={p.id}
-                      style={s.productBtn}
-                      onClick={() => addToCart(p)}
-                      onMouseEnter={e => {
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = '#E59090';
-                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(229, 144, 144, 0.15)';
-                        (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 10px rgba(229, 144, 144, 0.25)';
-                      }}
-                      onMouseLeave={e => {
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(104, 40, 55, 0.14)';
-                        (e.currentTarget as HTMLButtonElement).style.background = PRODUCT_BTN_BG;
-                        (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 1px 6px rgba(82, 48, 26, 0.08)';
-                      }}
-                    >
-                      <span style={s.productName}>{p.name}</span>
-                      <span style={s.productPrice}>${p.price.toFixed(2)}</span>
-                    </button>
+                    <div key={p.id}>
+                      <button
+                        style={s.productBtn}
+                        onClick={() => addToCart(p)}
+                        onMouseEnter={e => {
+                          (e.currentTarget as HTMLButtonElement).style.borderColor = '#E59090';
+                          (e.currentTarget as HTMLButtonElement).style.background = 'rgba(229, 144, 144, 0.15)';
+                          (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 10px rgba(229, 144, 144, 0.25)';
+                        }}
+                        onMouseLeave={e => {
+                          (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(104, 40, 55, 0.14)';
+                          (e.currentTarget as HTMLButtonElement).style.background = PRODUCT_BTN_BG;
+                          (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 1px 6px rgba(82, 48, 26, 0.08)';
+                        }}
+                      >
+                        <span style={s.productName}>{p.name}</span>
+                        <span style={s.productPrice}>${p.price.toFixed(2)}</span>
+                      </button>
+                      {(p.category === 'Matcha' || p.category === 'Filter Coffee' || p.category === 'Mocktail') && (
+                        <button style={s.setBtn} onClick={() => handleMakeSet(p)}>+ Set</button>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -800,52 +1099,72 @@ const POSPage: React.FC = () => {
           <div style={s.modalCard} onClick={e => e.stopPropagation()}>
             <div style={s.modalHeader}>
               <div style={s.modalTitleWrap}>
-                <span style={s.modalEyebrow}>Customize Drink</span>
+                <span style={s.modalEyebrow}>{isPostcard(customizingProduct) ? 'Choose Version' : 'Customize Drink'}</span>
                 <h2 style={s.modalTitle}>{customizingProduct.name}</h2>
-                <p style={s.modalText}>Choose milk and sugar before adding this latte to the cart.</p>
+                <p style={s.modalText}>
+                  {isPostcard(customizingProduct)
+                    ? 'Select a postcard version to add to cart.'
+                    : 'Choose milk and sugar before adding this latte to the cart.'}
+                </p>
               </div>
-              <button style={s.modalCloseBtn} onClick={closeCustomization} aria-label="Close customization">
-                x
-              </button>
+              <button style={s.modalCloseBtn} onClick={closeCustomization} aria-label="Close customization">x</button>
             </div>
 
-            <div style={s.optionGroup}>
-              <label style={s.label}>Milk Type *</label>
-              <div style={s.optionRow}>
-                {MILK_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    style={
-                      option.value === 'dairy' && dairyDisabled
-                        ? { ...s.optionBtn(false), ...s.optionBtnDisabled }
-                        : s.optionBtn(selectedMilk === option.value)
-                    }
-                    disabled={option.value === 'dairy' && dairyDisabled}
-                    onClick={() => {
-                      if (option.value === 'dairy' && dairyDisabled) return;
-                      setSelectedMilk(option.value);
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+            {isPostcard(customizingProduct) ? (
+              <div style={s.optionGroup}>
+                <label style={s.label}>Version *</label>
+                <div style={s.optionRow}>
+                  {([{ value: 'bw', label: 'Black & White', price: 2.00 }, { value: 'colour', label: 'Colour', price: 2.50 }] as const).map(opt => (
+                    <button
+                      key={opt.value}
+                      style={s.optionBtn(selectedPostcardVariant === opt.value)}
+                      onClick={() => setSelectedPostcardVariant(opt.value)}
+                    >
+                      {opt.label} · ${opt.price.toFixed(2)}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-
-            <div style={s.optionGroup}>
-              <label style={s.label}>Sugar Level *</label>
-              <div style={s.optionRow}>
-                {SUGAR_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    style={s.optionBtn(selectedSugar === option.value)}
-                    onClick={() => setSelectedSugar(option.value)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            ) : (
+              <>
+                <div style={s.optionGroup}>
+                  <label style={s.label}>Milk Type *</label>
+                  <div style={s.optionRow}>
+                    {MILK_OPTIONS.map(option => (
+                      <button
+                        key={option.value}
+                        style={
+                          option.value === 'dairy' && dairyDisabled
+                            ? { ...s.optionBtn(false), ...s.optionBtnDisabled }
+                            : s.optionBtn(selectedMilk === option.value)
+                        }
+                        disabled={option.value === 'dairy' && dairyDisabled}
+                        onClick={() => {
+                          if (option.value === 'dairy' && dairyDisabled) return;
+                          setSelectedMilk(option.value);
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={s.optionGroup}>
+                  <label style={s.label}>Sugar Level *</label>
+                  <div style={s.optionRow}>
+                    {SUGAR_OPTIONS.map(option => (
+                      <button
+                        key={option.value}
+                        style={s.optionBtn(selectedSugar === option.value)}
+                        onClick={() => setSelectedSugar(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             <div style={s.modalFooter}>
               <button style={s.ghostBtn} onClick={closeCustomization}>Cancel</button>
@@ -854,8 +1173,139 @@ const POSPage: React.FC = () => {
                 disabled={!canConfirmCustomization}
                 onClick={confirmCustomization}
               >
-                Add to Cart · ${customizingProduct.price.toFixed(2)}
+                {isPostcard(customizingProduct) && selectedPostcardVariant
+                  ? `Add to Cart · $${(selectedPostcardVariant === 'colour' ? 2.50 : 2.00).toFixed(2)}`
+                  : `Add to Cart · $${customizingProduct.price.toFixed(2)}`}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {makingSetForProduct && (
+        <div style={s.modalOverlay} onClick={() => setMakingSetForProduct(null)}>
+          <div style={s.modalCard} onClick={e => e.stopPropagation()}>
+            <div style={s.modalHeader}>
+              <div style={s.modalTitleWrap}>
+                <span style={s.modalEyebrow}>Make it a Set</span>
+                <h2 style={s.modalTitle}>Make it a Set add a bite for +$3.50</h2>
+                <p style={s.modalText}>{makingSetForProduct.name}</p>
+              </div>
+              <button style={s.modalCloseBtn} onClick={() => setMakingSetForProduct(null)} aria-label="Close make it a set">
+                x
+              </button>
+            </div>
+            <div style={s.optionGroup}>
+              {makeItASetBites.map(product => (
+                <button key={product.id} style={s.optionBtn(false)} onClick={() => addMakeItASetBite(product)}>
+                  {product.name} - $3.50
+                </button>
+              ))}
+            </div>
+            <div style={s.modalFooter}>
+              <button style={s.ghostBtn} onClick={() => setMakingSetForProduct(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {bestieSetStep > 0 && (
+        <div style={s.modalOverlay} onClick={closeBestieSet}>
+          <div style={s.modalCard} onClick={e => e.stopPropagation()}>
+            <div style={s.modalHeader}>
+              <div style={s.modalTitleWrap}>
+                <span style={s.modalEyebrow}>Bestie Set</span>
+                <h2 style={s.modalTitle}>
+                  {bestieSetStep === 1 ? 'Pick drink 1' : bestieSetStep === 2 ? 'Pick drink 2' : 'Pick a bite'}
+                </h2>
+                <p style={s.modalText}>Bestie Set - $18</p>
+              </div>
+              <button style={s.modalCloseBtn} onClick={closeBestieSet} aria-label="Close bestie set">
+                x
+              </button>
+            </div>
+
+            {bestieSetStep < 3 && (
+              <div style={s.optionGroup}>
+                <div style={s.optionRow}>
+                  {bestieDrinkProducts.map(product => (
+                    <button key={product.id} style={s.optionBtn(bestieCustomizingProduct?.id === product.id)} onClick={() => selectBestieDrink(product)}>
+                      {product.name} - ${product.price.toFixed(2)}
+                    </button>
+                  ))}
+                </div>
+                {bestieCustomizingProduct && (
+                  <>
+                    <div style={s.optionGroup}>
+                      <label style={s.label}>Milk Type *</label>
+                      <div style={s.optionRow}>
+                        {MILK_OPTIONS.map(option => (
+                          <button
+                            key={option.value}
+                            style={
+                              option.value === 'dairy' && bestieDairyDisabled
+                                ? { ...s.optionBtn(false), ...s.optionBtnDisabled }
+                                : s.optionBtn(bestieSelectedMilk === option.value)
+                            }
+                            disabled={option.value === 'dairy' && bestieDairyDisabled}
+                            onClick={() => {
+                              if (option.value === 'dairy' && bestieDairyDisabled) return;
+                              setBestieSelectedMilk(option.value);
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={s.optionGroup}>
+                      <label style={s.label}>Sugar Level *</label>
+                      <div style={s.optionRow}>
+                        {SUGAR_OPTIONS.map(option => (
+                          <button
+                            key={option.value}
+                            style={s.optionBtn(bestieSelectedSugar === option.value)}
+                            onClick={() => setBestieSelectedSugar(option.value)}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      style={s.submitBtn(!canConfirmBestieCustomization)}
+                      disabled={!canConfirmBestieCustomization}
+                      onClick={confirmBestieCustomization}
+                    >
+                      Confirm Drink
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {bestieSetStep === 3 && (
+              <div style={s.optionGroup}>
+                {bestieBiteProducts.map(product => (
+                  <button key={product.id} style={s.optionBtn(false)} onClick={() => completeBestieSet(product)}>
+                    {product.name} - ${product.price.toFixed(2)}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div style={s.modalFooter}>
+              <button
+                style={s.ghostBtn}
+                onClick={() => {
+                  setBestieCustomizingProduct(null);
+                  setBestieSelectedMilk(null);
+                  setBestieSelectedSugar(null);
+                  if (bestieSetStep === 1) closeBestieSet();
+                  else setBestieSetStep((bestieSetStep - 1) as 0 | 1 | 2 | 3);
+                }}
+              >
+                Back
+              </button>
+              <button style={s.ghostBtn} onClick={closeBestieSet}>Cancel</button>
             </div>
           </div>
         </div>
@@ -883,20 +1333,49 @@ const POSPage: React.FC = () => {
       <div style={s.cartItems}>
         {cart.length === 0
           ? <p style={s.emptyCart}>Tap a product to add it.</p>
-          : cart.map(item => (
-            <div key={getCartItemKey(item)} style={s.cartItem}>
-              <span style={s.cartItemName}>
-                {item.name}
-                {formatOptionLabel(item) && (
-                  <span style={s.cartItemMeta}>{formatOptionLabel(item)}</span>
-                )}
-              </span>
-              <button style={s.qtyBtn} onClick={() => updateQty(getCartItemKey(item), -1)}>-</button>
-              <span style={s.qtyNum}>{item.quantity}</span>
-              <button style={s.qtyBtn} onClick={() => updateQty(getCartItemKey(item), 1)}>+</button>
-              <span style={s.cartItemPrice}>${(item.price * item.quantity).toFixed(2)}</span>
-            </div>
-          ))
+          : cart.map(item => {
+            if (isBestieSetCartItem(item)) {
+              return (
+                <div key={item.cartKey} style={s.bestieCartItem}>
+                  <div style={s.bestieCartHeader}>
+                    <span style={s.cartItemName}>Bestie Set</span>
+                    {renderEditablePrice(item.cartKey, item.setPrice)}
+                    <button
+                      style={s.qtyBtn}
+                      onClick={() => {
+                        setLastSubmittedOrder(null);
+                        setCart(prev => prev.filter(entry => !isBestieSetCartItem(entry) || entry.cartKey !== item.cartKey));
+                      }}
+                    >
+                      x
+                    </button>
+                  </div>
+                  <span style={s.bestieSubItem}>{formatSubItemOptions(item.drink1)}</span>
+                  <span style={s.bestieSubItem}>{formatSubItemOptions(item.drink2)}</span>
+                  <span style={s.bestieSubItem}>{item.bite.name}</span>
+                </div>
+              );
+            }
+
+            const itemKey = getCartItemKey(item);
+            return (
+              <div key={itemKey} style={s.cartItem}>
+                <span style={s.cartItemName}>
+                  {item.name}
+                  {item.setLabel && (
+                    <span style={s.cartItemMeta}>{item.setLabel}</span>
+                  )}
+                  {formatOptionLabel(item) && (
+                    <span style={s.cartItemMeta}>{formatOptionLabel(item)}</span>
+                  )}
+                </span>
+                <button style={s.qtyBtn} onClick={() => updateQty(itemKey, -1)}>-</button>
+                <span style={s.qtyNum}>{item.quantity}</span>
+                <button style={s.qtyBtn} onClick={() => updateQty(itemKey, 1)}>+</button>
+                {renderEditablePrice(itemKey, item.price * item.quantity, item.quantity)}
+              </div>
+            );
+          })
         }
       </div>
 

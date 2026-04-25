@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local assistant app exports/config
+.agents/
+.claude/launch.json

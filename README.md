@@ -31,7 +31,10 @@ Create `\.env.local` with:
 ```env
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
+
+`SUPABASE_SERVICE_ROLE_KEY` is required for local checkout and kitchen API routes. Keep it server-side only; do not expose it with a `VITE_` prefix.
 
 Start the app:
 
@@ -44,6 +47,7 @@ npm run dev
 - `npm run dev` starts the local Vite dev server
 - `npm run build` runs TypeScript project builds and creates the production bundle
 - `npm run lint` runs ESLint across the repo
+- `npm run test:contracts` checks key POS/API contract assumptions
 - `npm run preview` serves the built app locally
 
 ## Supabase Setup
@@ -63,9 +67,9 @@ Required frontend environment variables:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-Required Vercel serverless environment variables:
+Required API environment variables:
 
-- `SUPABASE_URL`
+- `SUPABASE_URL` (local dev falls back to `VITE_SUPABASE_URL`)
 - `SUPABASE_SERVICE_ROLE_KEY`
 
 ## Deployment

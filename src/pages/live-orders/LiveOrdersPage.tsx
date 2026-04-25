@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { STATION_CATEGORIES } from '../../lib/constants';
 import type { Category, Order, OrderItem, OrderRecord, Product } from '../../types';
 
 const POLL_INTERVAL_MS = 5000;
 const READY_GREEN = '#3a7d44';
 const STATION_CATEGORY_MAP = {
-  Hojicha: ['Matcha'],
-  Coffee: ['Coffee', 'Specials'],
-  Kitchen: ['Savory', 'Bakery'],
+  Hojicha: STATION_CATEGORIES.hojicha,
+  Coffee: STATION_CATEGORIES.coffee,
+  Kitchen: STATION_CATEGORIES.kitchen,
 } as const satisfies Record<string, Category[]>;
 
 const MILK_LABELS: Record<string, string> = {

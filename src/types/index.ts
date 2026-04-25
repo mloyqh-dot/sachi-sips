@@ -1,4 +1,4 @@
-export type Category = 'Matcha' | 'Coffee' | 'Specials' | 'Savory' | 'Bakery';
+export type Category = 'Matcha' | 'Filter Coffee' | 'Mocktail' | 'Bites' | 'Bakes' | 'Merch';
 
 export interface Product {
   id: string;
@@ -24,7 +24,27 @@ export interface CartItem {
   price: number;
   options?: ProductOptions;
   quantity: number;
+  setLabel?: string;
 }
+
+export interface BestieSetSubItem {
+  product_id: string;
+  name: string;
+  price: number;      // normal DB price, used for proportional distribution
+  category: string;
+  options?: ProductOptions;
+}
+
+export interface BestieSetCartItem {
+  type: 'bestie_set';
+  cartKey: string;    // unique local id, e.g. `bestie_set::${Date.now()}`
+  setPrice: number;   // always 18
+  drink1: BestieSetSubItem;
+  drink2: BestieSetSubItem;
+  bite: BestieSetSubItem;
+}
+
+export type CartEntry = CartItem | BestieSetCartItem;
 
 export type PaymentMethod = 'cash' | 'card' | 'other';
 export type OrderStatus = 'live' | 'completed';
@@ -65,7 +85,7 @@ export interface OrderRecord extends Omit<Order, 'items'> {
 export interface Transaction {
   id: string;
   created_at: string;
-  items: CartItem[];
+  items: CartEntry[];
   total: number;
   payment_method: PaymentMethod;
   notes?: string;
@@ -77,5 +97,5 @@ export interface Receipt {
   transaction_id: string;
   created_at: string;
   total: number;
-  items: CartItem[];
+  items: CartEntry[];
 }

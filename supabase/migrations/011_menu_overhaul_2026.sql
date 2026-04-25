@@ -1,14 +1,7 @@
--- Supabase SQL Editor script for the confirmed Sachi Sips POS menu.
--- This is safe to run as a single script in order.
-
 begin;
 
-alter table if exists products
+alter table products
   drop constraint if exists products_category_check;
-
-alter table if exists products
-  add column if not exists subcategory text,
-  add column if not exists sort_order integer not null default 0;
 
 truncate table products cascade;
 

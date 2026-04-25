@@ -43,7 +43,6 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 type ProductRow = {
   id: string;
   name: string;
-  price: number;
   is_available: boolean;
 };
 
@@ -91,6 +90,10 @@ function hasValidOptions(item: OrderItemPayload) {
   return isMilkOption(item.options.milk) && isSugarOption(item.options.sugar);
 }
 
+function roundCurrency(value: number) {
+  return Number(value.toFixed(2));
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Allow', ['POST']);
 
@@ -134,7 +137,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const productIds = Array.from(new Set(items.map(item => item.product_id)));
   const { data: products, error: productsError } = await supabase
     .from('products')
-    .select('id, name, price, is_available')
+    .select('id, name, is_available')
     .in('id', productIds);
 
   if (productsError) {
@@ -162,16 +165,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       product_id: product.id,
       name: product.name,
       quantity: item.quantity,
-      unit_price: Number(product.price),
+      unit_price: roundCurrency(item.unit_price),
       options: item.options,
     });
   }
 
-  const computedSubtotal = Number(
-    canonicalItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0).toFixed(2)
+  const computedSubtotal = roundCurrency(
+    canonicalItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
   );
-  const submittedSubtotal = typeof body.subtotal === 'number' ? Number(body.subtotal.toFixed(2)) : computedSubtotal;
-  const submittedTotal = typeof body.total === 'number' ? Number(body.total.toFixed(2)) : computedSubtotal;
+  const submittedSubtotal = typeof body.subtotal === 'number' ? roundCurrency(body.subtotal) : computedSubtotal;
+  const submittedTotal = typeof body.total === 'number' ? roundCurrency(body.total) : computedSubtotal;
 
   if (submittedSubtotal !== computedSubtotal || submittedTotal !== computedSubtotal) {
     res.status(400).json({ error: 'Order totals do not match item totals' });

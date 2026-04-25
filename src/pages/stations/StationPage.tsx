@@ -4,7 +4,7 @@ import type { Category, Order, OrderItem, OrderRecord, Product } from '../../typ
 
 export interface StationPageProps {
   stationName: string;
-  station: 'hojicha' | 'coffee' | 'kitchen';
+  station: 'hojicha' | 'coffee' | 'kitchen' | 'merch';
   categories: Category[];
 }
 
