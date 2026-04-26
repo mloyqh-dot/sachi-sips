@@ -11,13 +11,15 @@ type OrderItemPayload = {
   quantity: number;
   unit_price: number;
   options?: {
-    milk: MilkOption;
-    sugar: SugarOption;
+    milk?: MilkOption;
+    sugar?: SugarOption;
+    warm_up?: 'warm_up' | 'no_warm_up';
   };
 };
 
 type CreateOrderRequest = {
   staffName?: string;
+  customerName?: string;
   paymentMethod?: PaymentMethod;
   order_type?: OrderType;
   notes?: string;
@@ -52,8 +54,9 @@ type CanonicalOrderItemPayload = {
   quantity: number;
   unit_price: number;
   options?: {
-    milk: MilkOption;
-    sugar: SugarOption;
+    milk?: MilkOption;
+    sugar?: SugarOption;
+    warm_up?: 'warm_up' | 'no_warm_up';
   };
 };
 
@@ -84,10 +87,18 @@ function isSugarOption(value: unknown): value is SugarOption {
   return value === 'no_sugar' || value === 'less_sweet' || value === 'normal' || value === 'more_sweet';
 }
 
+function isWarmUpOption(value: unknown) {
+  return value === 'warm_up' || value === 'no_warm_up';
+}
+
 function hasValidOptions(item: OrderItemPayload) {
   if (!item.options) return true;
 
-  return isMilkOption(item.options.milk) && isSugarOption(item.options.sugar);
+  return (
+    (item.options.milk === undefined || isMilkOption(item.options.milk)) &&
+    (item.options.sugar === undefined || isSugarOption(item.options.sugar)) &&
+    (item.options.warm_up === undefined || isWarmUpOption(item.options.warm_up))
+  );
 }
 
 function roundCurrency(value: number) {
@@ -109,12 +120,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const body = req.body ?? {};
   const staffName = body.staffName?.trim() ?? '';
+  const customerName = body.customerName?.trim() ?? '';
   const notes = body.notes?.trim() ?? '';
   const items = body.items ?? [];
   const orderType = body.order_type ?? 'dine_in';
 
   if (!staffName) {
     res.status(400).json({ error: 'Staff name is required' });
+    return;
+  }
+
+  if (!customerName) {
+    res.status(400).json({ error: 'Customer name is required' });
     return;
   }
 
@@ -183,6 +200,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { data, error } = await supabase.rpc('create_order', {
     p_staff_name: staffName,
+    p_customer_name: customerName,
     p_payment_method: body.paymentMethod,
     p_notes: notes || null,
     p_subtotal: computedSubtotal,

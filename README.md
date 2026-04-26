@@ -5,7 +5,10 @@ Sachi Sips POS is a Vite + React + TypeScript point-of-sale dashboard for event 
 Current MVP scope:
 - POS checkout flow at `/`
 - Live kitchen queue at `/live-orders`
-- Placeholder routes for `/receipts` and `/dashboard`
+- Station queues at `/stations/hojicha`, `/stations/coffee`, and `/stations/kitchen`
+- Completed receipt lookup at `/receipts`
+- Owner dashboard at `/dashboard`
+- Standalone donations at `/donations`
 - Persistent order storage in Supabase
 - Auto-refreshing live orders view for kitchen staff
 
@@ -54,11 +57,8 @@ npm run dev
 
 Apply migrations in order:
 
-- `supabase/migrations/001_create_products.sql`
-- `supabase/migrations/002_create_transactions.sql`
-- `supabase/migrations/003_expand_products_menu_structure.sql`
-- `supabase/migrations/004_create_orders.sql`
-- `supabase/migrations/005_allow_client_create_order.sql`
+- Apply every file in `supabase/migrations/` in numeric order.
+- The latest order workflow migration is `013_add_customer_name_to_orders.sql`; it is required before customer-name checkout will work.
 
 Optional seed files are in `supabase/seed/`.
 
@@ -88,8 +88,12 @@ The project includes `vercel.json` so client-side routes like `/live-orders` rew
 
 - `/` POS checkout
 - `/live-orders` kitchen live queue
-- `/receipts` receipts placeholder
-- `/dashboard` dashboard placeholder
+- `/stations/hojicha` hojicha/matcha station queue
+- `/stations/coffee` coffee/mocktail station queue
+- `/stations/kitchen` bites/bakes station queue
+- `/receipts` completed receipt lookup
+- `/donations` standalone donation recording
+- `/dashboard` owner dashboard
 
 ## Pre-Push Checks
 
@@ -105,9 +109,11 @@ Manual smoke checks:
 - Open `/`
 - Create an order
 - Confirm it appears on `/live-orders`
-- Confirm `/receipts` and `/dashboard` load
+- Confirm station pages show only their assigned items
+- Mark station items ready and confirm Live Orders station status updates
+- Mark the order served and confirm it appears on `/receipts` and `/dashboard`
 
 ## Notes
 
 - This is currently an MVP for trusted staff testing, not a locked-down production staff portal.
-- Order creation uses the Vercel API in deployed environments and falls back to direct Supabase RPC in local development.
+- Order creation uses the `/api/orders` API route in deployed and local Vite development environments.

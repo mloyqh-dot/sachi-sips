@@ -12,10 +12,12 @@ export interface Product {
 
 export type MilkOption = 'dairy' | 'oat';
 export type SugarOption = 'no_sugar' | 'less_sweet' | 'normal' | 'more_sweet';
+export type WarmUpOption = 'warm_up' | 'no_warm_up';
 
 export interface ProductOptions {
-  milk: MilkOption;
-  sugar: SugarOption;
+  milk?: MilkOption;
+  sugar?: SugarOption;
+  warm_up?: WarmUpOption;
 }
 
 export interface CartItem {
@@ -75,6 +77,7 @@ export interface Order {
   payment_method: PaymentMethod;
   notes?: string | null;
   staff_name: string;
+  customer_name?: string | null;
   items: OrderItem[];
 }
 

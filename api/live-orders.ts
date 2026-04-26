@@ -74,6 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payment_method,
       notes,
       staff_name,
+      customer_name,
       order_items (
         id,
         order_id,

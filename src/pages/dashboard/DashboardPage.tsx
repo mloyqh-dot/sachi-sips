@@ -405,7 +405,7 @@ const DashboardPage: React.FC = () => {
                 style={s.input}
                 value={search}
                 onChange={event => setSearch(event.target.value)}
-                placeholder="Ticket, staff, item, notes"
+                placeholder="Ticket, customer, staff, item, notes"
               />
             </label>
             <label style={s.field}>
@@ -552,6 +552,7 @@ const DashboardPage: React.FC = () => {
                       <th style={s.th}><button type="button" style={s.sortButton} onClick={() => toggleSort('total')}>Total{sortLabel('total')}</button></th>
                       <th style={s.th}><button type="button" style={s.sortButton} onClick={() => toggleSort('payment_method')}>Payment{sortLabel('payment_method')}</button></th>
                       <th style={s.th}>Type</th>
+                      <th style={s.th}>Customer</th>
                       <th style={s.th}><button type="button" style={s.sortButton} onClick={() => toggleSort('staff_name')}>Staff{sortLabel('staff_name')}</button></th>
                       <th style={s.th}><button type="button" style={s.sortButton} onClick={() => toggleSort('item_count')}>Items{sortLabel('item_count')}</button></th>
                     </tr>
@@ -567,6 +568,7 @@ const DashboardPage: React.FC = () => {
                         <td style={s.td}>{formatCurrency(order.total)}</td>
                         <td style={s.td}>{formatPaymentMethod(order.payment_method)}</td>
                         <td style={s.td}>{formatOrderType(order.order_type)}</td>
+                        <td style={s.td}>{order.customer_name || 'Not recorded'}</td>
                         <td style={s.td}>{order.staff_name}</td>
                         <td style={s.td}>
                           {getOrderItemCount(order)}

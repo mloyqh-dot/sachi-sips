@@ -5,6 +5,11 @@ const MILK_LABELS: Record<string, string> = {
   oat: 'Oat',
 };
 
+const WARM_UP_LABELS: Record<string, string> = {
+  warm_up: 'Warm Up',
+  no_warm_up: 'No Warm Up',
+};
+
 const SUGAR_LABELS: Record<string, string> = {
   no_sugar: 'No Sugar',
   less_sweet: 'Less Sweet',
@@ -59,6 +64,7 @@ export function formatOptions(options: OrderItem['options']) {
   const labels = [
     options.milk ? MILK_LABELS[options.milk] ?? options.milk : null,
     options.sugar ? SUGAR_LABELS[options.sugar] ?? options.sugar : null,
+    options.warm_up ? WARM_UP_LABELS[options.warm_up] ?? options.warm_up : null,
   ].filter(Boolean);
 
   return labels.length > 0 ? labels.join(' / ') : null;
@@ -71,6 +77,7 @@ export function getOrderItemCount(order: Order) {
 export function getOrderSearchText(order: Order) {
   return [
     order.ticket_number,
+    order.customer_name,
     order.staff_name,
     order.payment_method,
     order.order_type,

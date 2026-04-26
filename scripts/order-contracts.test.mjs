@@ -3,14 +3,18 @@ import assert from 'node:assert/strict';
 
 const apiOrders = readFileSync(new URL('../api/orders.ts', import.meta.url), 'utf8');
 const apiOrdersHistory = readFileSync(new URL('../api/orders-history.ts', import.meta.url), 'utf8');
+const apiLiveOrders = readFileSync(new URL('../api/live-orders.ts', import.meta.url), 'utf8');
 const apiDonations = readFileSync(new URL('../api/donations.ts', import.meta.url), 'utf8');
 const apiDonationsHistory = readFileSync(new URL('../api/donations-history.ts', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const posPage = readFileSync(new URL('../src/pages/pos/POSPage.tsx', import.meta.url), 'utf8');
 const dashboardPage = readFileSync(new URL('../src/pages/dashboard/DashboardPage.tsx', import.meta.url), 'utf8');
+const liveOrdersPage = readFileSync(new URL('../src/pages/live-orders/LiveOrdersPage.tsx', import.meta.url), 'utf8');
 const donationsPage = readFileSync(new URL('../src/pages/donations/DonationsPage.tsx', import.meta.url), 'utf8');
 const receiptsPage = readFileSync(new URL('../src/pages/receipts/ReceiptsPage.tsx', import.meta.url), 'utf8');
 const stationApi = readFileSync(new URL('../api/mark-station-ready.ts', import.meta.url), 'utf8');
+const stationPage = readFileSync(new URL('../src/pages/stations/StationPage.tsx', import.meta.url), 'utf8');
+const customerNameMigration = readFileSync(new URL('../supabase/migrations/013_add_customer_name_to_orders.sql', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
 
 assert.match(
@@ -23,6 +27,48 @@ assert.doesNotMatch(
   posPage,
   /supabase\.rpc\('create_order'/,
   'POS order creation should not use the anon Supabase create_order RPC path locally'
+);
+
+assert.match(
+  posPage,
+  /customerName|Customer name/,
+  'POS checkout should collect and submit customer name for handoff'
+);
+
+assert.match(
+  apiOrders,
+  /customerName|p_customer_name/,
+  'api/orders.ts should require and submit customer name to the order RPC'
+);
+
+assert.match(
+  apiLiveOrders,
+  /customer_name/,
+  'api/live-orders.ts should return customer_name for kitchen and station handoff'
+);
+
+assert.doesNotMatch(
+  liveOrdersPage,
+  /order\.items\.every\(item => item\.ready_at !== null\)/,
+  'Live Orders ready-to-serve logic should not require non-station items such as merch to have ready_at'
+);
+
+assert.match(
+  stationPage,
+  /Customer:/,
+  'Station pages should show customer name alongside ticket details'
+);
+
+assert.match(
+  customerNameMigration,
+  /drop function if exists create_order\(text, text, text, numeric, numeric, jsonb, text\)/,
+  'Customer-name migration should drop the old create_order overload before installing the new RPC signature'
+);
+
+assert.match(
+  customerNameMigration,
+  /notify pgrst, 'reload schema'/,
+  'Customer-name migration should refresh the PostgREST schema cache after changing the RPC signature'
 );
 
 for (const category of ['Filter Coffee', 'Mocktail', 'Bites', 'Bakes']) {
@@ -43,6 +89,12 @@ assert.match(
   apiOrdersHistory,
   /\.eq\('status', 'completed'\)/,
   'api/orders-history.ts should query completed orders only for owner reporting'
+);
+
+assert.match(
+  apiOrdersHistory,
+  /customer_name/,
+  'api/orders-history.ts should return customer_name for receipt and dashboard lookup'
 );
 
 assert.match(

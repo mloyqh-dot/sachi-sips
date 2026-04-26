@@ -11,6 +11,7 @@ import type {
   OrderType,
   MilkOption,
   SugarOption,
+  WarmUpOption,
   ProductOptions,
   Order,
 } from '../../types';
@@ -28,18 +29,29 @@ const SUGAR_OPTIONS: { value: SugarOption; label: string }[] = [
   { value: 'normal', label: 'Normal Sugar' },
   { value: 'more_sweet', label: 'More Sweet' },
 ];
+const WARM_UP_OPTIONS: { value: WarmUpOption; label: string }[] = [
+  { value: 'warm_up', label: 'Warm Up' },
+  { value: 'no_warm_up', label: 'No Warm Up' },
+];
 
 function isPostcard(product: Product) {
   return product.name === "Sachi's Postcard";
 }
 
-function isCustomizable(product: Product) {
-  return (
-    /matcha latte|hojicha latte/i.test(product.name) ||
-    product.category === 'Filter Coffee' ||
-    product.category === 'Mocktail' ||
-    isPostcard(product)
-  );
+function requiresMilkOption(product: Product) {
+  return /matcha latte|hojicha latte/i.test(product.name);
+}
+
+function requiresSugarOption(product: Product) {
+  return requiresMilkOption(product) && !/strawberry matcha|lychee matcha/i.test(product.name);
+}
+
+function requiresWarmUpOption(product: Product, orderType: OrderType) {
+  return orderType === 'dine_in' && /shio pan|spam musubi/i.test(product.name);
+}
+
+function isCustomizable(product: Product, orderType: OrderType) {
+  return isPostcard(product) || requiresMilkOption(product) || requiresWarmUpOption(product, orderType);
 }
 
 function isOatOnlyLatte(product: Product) {
@@ -47,7 +59,7 @@ function isOatOnlyLatte(product: Product) {
 }
 
 function optionsMatch(a?: ProductOptions, b?: ProductOptions) {
-  return a?.milk === b?.milk && a?.sugar === b?.sugar;
+  return a?.milk === b?.milk && a?.sugar === b?.sugar && a?.warm_up === b?.warm_up;
 }
 
 function isBestieSetCartItem(item: CartEntry): item is BestieSetCartItem {
@@ -57,8 +69,9 @@ function isBestieSetCartItem(item: CartEntry): item is BestieSetCartItem {
 function getCartItemKey(item: CartItem) {
   const milk = item.options?.milk ?? 'none';
   const sugar = item.options?.sugar ?? 'none';
+  const warmUp = item.options?.warm_up ?? 'none';
   const setLabel = item.setLabel ?? 'none';
-  return `${item.product_id}::${milk}::${sugar}::${setLabel}`;
+  return `${item.product_id}::${milk}::${sugar}::${warmUp}::${setLabel}`;
 }
 
 function formatOptionLabel(item: CartItem) {
@@ -66,7 +79,8 @@ function formatOptionLabel(item: CartItem) {
 
   const milkLabel = MILK_OPTIONS.find(option => option.value === item.options?.milk)?.label;
   const sugarLabel = SUGAR_OPTIONS.find(option => option.value === item.options?.sugar)?.label;
-  return [milkLabel, sugarLabel].filter(Boolean).join(' · ');
+  const warmUpLabel = WARM_UP_OPTIONS.find(option => option.value === item.options?.warm_up)?.label;
+  return [milkLabel, sugarLabel, warmUpLabel].filter(Boolean).join(' · ');
 }
 
 function formatSubItemOptions(item: BestieSetSubItem) {
@@ -74,7 +88,8 @@ function formatSubItemOptions(item: BestieSetSubItem) {
 
   const milkLabel = MILK_OPTIONS.find(option => option.value === item.options?.milk)?.label;
   const sugarLabel = SUGAR_OPTIONS.find(option => option.value === item.options?.sugar)?.label;
-  const optionLabel = [milkLabel, sugarLabel].filter(Boolean).join(' - ');
+  const warmUpLabel = WARM_UP_OPTIONS.find(option => option.value === item.options?.warm_up)?.label;
+  const optionLabel = [milkLabel, sugarLabel, warmUpLabel].filter(Boolean).join(' - ');
   return optionLabel ? `${item.name} (${optionLabel})` : item.name;
 }
 
@@ -118,6 +133,7 @@ function explodeCartEntries(entries: CartEntry[]): CartItem[] {
 
 async function createOrder(payload: {
   p_staff_name: string;
+  p_customer_name: string;
   p_payment_method: PaymentMethod;
   p_order_type: OrderType;
   p_notes: string | null;
@@ -138,6 +154,7 @@ async function createOrder(payload: {
     },
     body: JSON.stringify({
       staffName: payload.p_staff_name,
+      customerName: payload.p_customer_name,
       paymentMethod: payload.p_payment_method,
       order_type: payload.p_order_type,
       notes: payload.p_notes,
@@ -697,6 +714,7 @@ const POSPage: React.FC = () => {
   const [customizingProduct, setCustomizingProduct] = useState<Product | null>(null);
   const [selectedMilk, setSelectedMilk] = useState<MilkOption | null>(null);
   const [selectedSugar, setSelectedSugar] = useState<SugarOption | null>(null);
+  const [selectedWarmUp, setSelectedWarmUp] = useState<WarmUpOption | null>(null);
   const [selectedPostcardVariant, setSelectedPostcardVariant] = useState<'bw' | 'colour' | null>(null);
   const [makingSetForProduct, setMakingSetForProduct] = useState<CartItem | null>(null);
   const [bestieSetStep, setBestieSetStep] = useState<0 | 1 | 2 | 3>(0);
@@ -709,6 +727,7 @@ const POSPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [orderType, setOrderType] = useState<OrderType>('dine_in');
   const [staffName, setStaffName] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -763,14 +782,16 @@ const POSPage: React.FC = () => {
     setCustomizingProduct(null);
     setSelectedMilk(null);
     setSelectedSugar(null);
+    setSelectedWarmUp(null);
     setSelectedPostcardVariant(null);
   }, []);
 
   const addToCart = useCallback((product: Product) => {
-    if (isCustomizable(product)) {
+    if (isCustomizable(product, orderType)) {
       setCustomizingProduct(product);
       setSelectedMilk(null);
       setSelectedSugar(null);
+      setSelectedWarmUp(null);
       return;
     }
 
@@ -779,7 +800,7 @@ const POSPage: React.FC = () => {
       name: product.name,
       price: product.price,
     });
-  }, [commitCartItem]);
+  }, [commitCartItem, orderType]);
 
   const confirmCustomization = useCallback(() => {
     if (!customizingProduct) return;
@@ -796,15 +817,30 @@ const POSPage: React.FC = () => {
       return;
     }
 
-    if (!selectedMilk || !selectedSugar) return;
+    if (requiresWarmUpOption(customizingProduct, orderType)) {
+      if (!selectedWarmUp) return;
+      commitCartItem({
+        product_id: customizingProduct.id,
+        name: customizingProduct.name,
+        price: customizingProduct.price,
+        options: { warm_up: selectedWarmUp },
+      });
+      closeCustomization();
+      return;
+    }
+
+    if (!selectedMilk || (requiresSugarOption(customizingProduct) && !selectedSugar)) return;
     commitCartItem({
       product_id: customizingProduct.id,
       name: customizingProduct.name,
       price: customizingProduct.price,
-      options: { milk: selectedMilk, sugar: selectedSugar },
+      options: {
+        milk: selectedMilk,
+        ...(requiresSugarOption(customizingProduct) && selectedSugar ? { sugar: selectedSugar } : {}),
+      },
     });
     closeCustomization();
-  }, [closeCustomization, commitCartItem, customizingProduct, selectedMilk, selectedSugar, selectedPostcardVariant]);
+  }, [closeCustomization, commitCartItem, customizingProduct, orderType, selectedMilk, selectedSugar, selectedWarmUp, selectedPostcardVariant]);
 
   const updateQty = useCallback((itemKey: string, delta: number) => {
     setLastSubmittedOrder(null);
@@ -875,7 +911,7 @@ const POSPage: React.FC = () => {
   }, [bestieSetStep, productToBestieSubItem]);
 
   const selectBestieDrink = useCallback((product: Product) => {
-    if (isCustomizable(product)) {
+    if (requiresMilkOption(product)) {
       setBestieCustomizingProduct(product);
       setBestieSelectedMilk(null);
       setBestieSelectedSugar(null);
@@ -886,11 +922,15 @@ const POSPage: React.FC = () => {
   }, [commitBestieDrink]);
 
   const confirmBestieCustomization = useCallback(() => {
-    if (!bestieCustomizingProduct || !bestieSelectedMilk || !bestieSelectedSugar) return;
+    if (
+      !bestieCustomizingProduct ||
+      !bestieSelectedMilk ||
+      (requiresSugarOption(bestieCustomizingProduct) && !bestieSelectedSugar)
+    ) return;
 
     commitBestieDrink(bestieCustomizingProduct, {
       milk: bestieSelectedMilk,
-      sugar: bestieSelectedSugar,
+      ...(requiresSugarOption(bestieCustomizingProduct) && bestieSelectedSugar ? { sugar: bestieSelectedSugar } : {}),
     });
   }, [bestieCustomizingProduct, bestieSelectedMilk, bestieSelectedSugar, commitBestieDrink]);
 
@@ -933,12 +973,20 @@ const POSPage: React.FC = () => {
   // Derived
   const total = cart.reduce((sum, i) => sum + (isBestieSetCartItem(i) ? i.setPrice : i.price * i.quantity), 0);
   const cartCount = cart.reduce((sum, i) => sum + (isBestieSetCartItem(i) ? 1 : i.quantity), 0);
-  const canSubmit = cart.length > 0 && staffName.trim().length > 0 && !submitting;
-  const canConfirmCustomization = customizingProduct && isPostcard(customizingProduct)
-    ? selectedPostcardVariant !== null
-    : Boolean(selectedMilk && selectedSugar);
+  const canSubmit = cart.length > 0 && staffName.trim().length > 0 && customerName.trim().length > 0 && !submitting;
+  const canConfirmCustomization = customizingProduct && (
+    isPostcard(customizingProduct)
+      ? selectedPostcardVariant !== null
+      : requiresWarmUpOption(customizingProduct, orderType)
+        ? selectedWarmUp !== null
+        : Boolean(selectedMilk && (!requiresSugarOption(customizingProduct) || selectedSugar))
+  );
   const dairyDisabled = customizingProduct ? isOatOnlyLatte(customizingProduct) : false;
-  const canConfirmBestieCustomization = Boolean(bestieSelectedMilk && bestieSelectedSugar);
+  const canConfirmBestieCustomization = Boolean(
+    bestieCustomizingProduct &&
+    bestieSelectedMilk &&
+    (!requiresSugarOption(bestieCustomizingProduct) || bestieSelectedSugar)
+  );
   const bestieDairyDisabled = bestieCustomizingProduct ? isOatOnlyLatte(bestieCustomizingProduct) : false;
   const makeItASetBites = products.filter(product => product.category === 'Bites');
   const bestieDrinkProducts = products.filter(product => product.category === 'Matcha' || product.category === 'Filter Coffee');
@@ -954,6 +1002,7 @@ const POSPage: React.FC = () => {
   async function handleSubmit() {
     if (!canSubmit) {
       if (!staffName.trim()) setError('Enter your name before completing the sale.');
+      else if (!customerName.trim()) setError('Enter the customer name before completing the sale.');
       return;
     }
     setError(null);
@@ -965,6 +1014,7 @@ const POSPage: React.FC = () => {
       const orderTotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const payload = {
         p_staff_name: staffName.trim(),
+        p_customer_name: customerName.trim(),
         p_payment_method: paymentMethod,
         p_order_type: orderType,
         p_notes: notes.trim() || null,
@@ -985,6 +1035,7 @@ const POSPage: React.FC = () => {
       }
 
       setCart([]);
+      setCustomerName('');
       setNotes('');
       setPaymentMethod('cash');
       setOrderType('dine_in');
@@ -1083,7 +1134,7 @@ const POSPage: React.FC = () => {
                         <span style={s.productName}>{p.name}</span>
                         <span style={s.productPrice}>${p.price.toFixed(2)}</span>
                       </button>
-                      {(p.category === 'Matcha' || p.category === 'Filter Coffee' || p.category === 'Mocktail') && (
+                      {(p.category === 'Matcha' || p.category === 'Filter Coffee') && (
                         <button style={s.setBtn} onClick={() => handleMakeSet(p)}>+ Set</button>
                       )}
                     </div>
@@ -1104,7 +1155,11 @@ const POSPage: React.FC = () => {
                 <p style={s.modalText}>
                   {isPostcard(customizingProduct)
                     ? 'Select a postcard version to add to cart.'
-                    : 'Choose milk and sugar before adding this latte to the cart.'}
+                    : requiresWarmUpOption(customizingProduct, orderType)
+                      ? 'Choose whether this dine-in item should be warmed.'
+                      : requiresSugarOption(customizingProduct)
+                        ? 'Choose milk and sugar before adding this latte to the cart.'
+                        : 'Choose milk before adding this item to the cart.'}
                 </p>
               </div>
               <button style={s.modalCloseBtn} onClick={closeCustomization} aria-label="Close customization">x</button>
@@ -1121,6 +1176,21 @@ const POSPage: React.FC = () => {
                       onClick={() => setSelectedPostcardVariant(opt.value)}
                     >
                       {opt.label} · ${opt.price.toFixed(2)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : requiresWarmUpOption(customizingProduct, orderType) ? (
+              <div style={s.optionGroup}>
+                <label style={s.label}>Warm Up *</label>
+                <div style={s.optionRow}>
+                  {WARM_UP_OPTIONS.map(option => (
+                    <button
+                      key={option.value}
+                      style={s.optionBtn(selectedWarmUp === option.value)}
+                      onClick={() => setSelectedWarmUp(option.value)}
+                    >
+                      {option.label}
                     </button>
                   ))}
                 </div>
@@ -1149,20 +1219,22 @@ const POSPage: React.FC = () => {
                     ))}
                   </div>
                 </div>
-                <div style={s.optionGroup}>
-                  <label style={s.label}>Sugar Level *</label>
-                  <div style={s.optionRow}>
-                    {SUGAR_OPTIONS.map(option => (
-                      <button
-                        key={option.value}
-                        style={s.optionBtn(selectedSugar === option.value)}
-                        onClick={() => setSelectedSugar(option.value)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
+                {requiresSugarOption(customizingProduct) && (
+                  <div style={s.optionGroup}>
+                    <label style={s.label}>Sugar Level *</label>
+                    <div style={s.optionRow}>
+                      {SUGAR_OPTIONS.map(option => (
+                        <button
+                          key={option.value}
+                          style={s.optionBtn(selectedSugar === option.value)}
+                          onClick={() => setSelectedSugar(option.value)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
 
@@ -1256,20 +1328,22 @@ const POSPage: React.FC = () => {
                         ))}
                       </div>
                     </div>
-                    <div style={s.optionGroup}>
-                      <label style={s.label}>Sugar Level *</label>
-                      <div style={s.optionRow}>
-                        {SUGAR_OPTIONS.map(option => (
-                          <button
-                            key={option.value}
-                            style={s.optionBtn(bestieSelectedSugar === option.value)}
-                            onClick={() => setBestieSelectedSugar(option.value)}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
+                    {requiresSugarOption(bestieCustomizingProduct) && (
+                      <div style={s.optionGroup}>
+                        <label style={s.label}>Sugar Level *</label>
+                        <div style={s.optionRow}>
+                          {SUGAR_OPTIONS.map(option => (
+                            <button
+                              key={option.value}
+                              style={s.optionBtn(bestieSelectedSugar === option.value)}
+                              onClick={() => setBestieSelectedSugar(option.value)}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <button
                       style={s.submitBtn(!canConfirmBestieCustomization)}
                       disabled={!canConfirmBestieCustomization}
@@ -1416,6 +1490,17 @@ const POSPage: React.FC = () => {
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label style={s.label} htmlFor="customer-name">Customer name *</label>
+          <input
+            id="customer-name"
+            style={s.input}
+            value={customerName}
+            onChange={e => setCustomerName(e.target.value)}
+            placeholder="e.g. Marcus"
+          />
         </div>
 
         <div>

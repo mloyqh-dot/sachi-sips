@@ -314,7 +314,7 @@ const ReceiptsPage: React.FC = () => {
                 style={s.input}
                 value={search}
                 onChange={event => setSearch(event.target.value)}
-                placeholder="Ticket, staff, item, notes"
+                placeholder="Ticket, customer, staff, item, notes"
               />
             </label>
             <label style={s.field}>
@@ -347,6 +347,9 @@ const ReceiptsPage: React.FC = () => {
                     <span style={s.ticket}>{order.ticket_number}</span>
                     <span style={s.total}>{formatCurrency(order.total)}</span>
                   </div>
+                  {order.customer_name && (
+                    <div style={s.listMeta}>Customer: {order.customer_name}</div>
+                  )}
                   <div style={s.listMeta}>
                     {formatDateTime(order.completed_at)} · {formatPaymentMethod(order.payment_method)} · {getOrderItemCount(order)} items
                   </div>
@@ -379,6 +382,10 @@ const ReceiptsPage: React.FC = () => {
                     <div style={s.metaCell}>
                       <span style={s.label}>Order Type</span>
                       <span style={s.metaValue}>{formatOrderType(selectedOrder.order_type)}</span>
+                    </div>
+                    <div style={s.metaCell}>
+                      <span style={s.label}>Customer</span>
+                      <span style={s.metaValue}>{selectedOrder.customer_name || 'Not recorded'}</span>
                     </div>
                     <div style={s.metaCell}>
                       <span style={s.label}>Staff</span>

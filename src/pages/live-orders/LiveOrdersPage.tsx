@@ -10,6 +10,7 @@ const STATION_CATEGORY_MAP = {
   Coffee: STATION_CATEGORIES.coffee,
   Kitchen: STATION_CATEGORIES.kitchen,
 } as const satisfies Record<string, Category[]>;
+const STATION_READY_CATEGORIES = new Set<Category>(Object.values(STATION_CATEGORY_MAP).flat());
 
 const MILK_LABELS: Record<string, string> = {
   dairy: 'Dairy',
@@ -21,6 +22,11 @@ const SUGAR_LABELS: Record<string, string> = {
   less_sweet: 'Less Sweet',
   normal: 'Normal Sugar',
   more_sweet: 'More Sweet',
+};
+
+const WARM_UP_LABELS: Record<string, string> = {
+  warm_up: 'Warm Up',
+  no_warm_up: 'No Warm Up',
 };
 
 function formatCreatedTime(value: string) {
@@ -45,6 +51,7 @@ function formatOptions(options: OrderItem['options']) {
   const labels = [
     options.milk ? MILK_LABELS[options.milk] ?? options.milk : null,
     options.sugar ? SUGAR_LABELS[options.sugar] ?? options.sugar : null,
+    options.warm_up ? WARM_UP_LABELS[options.warm_up] ?? options.warm_up : null,
   ].filter(Boolean);
 
   return labels.length > 0 ? labels.join(' / ') : null;
@@ -94,6 +101,17 @@ function getStationStatus(
   }
 
   return stationItems.every(item => item.ready_at !== null) ? 'done' as const : 'pending' as const;
+}
+
+function isOrderReadyToServe(order: Order, productCategoryMap: Map<string, Category>) {
+  if (productCategoryMap.size === 0) return false;
+
+  const stationItems = order.items.filter(item => {
+    const category = productCategoryMap.get(item.product_id);
+    return category ? STATION_READY_CATEGORIES.has(category) : true;
+  });
+
+  return stationItems.every(item => item.ready_at !== null);
 }
 
 async function fetchLiveOrders() {
@@ -268,6 +286,13 @@ const s = {
     fontSize: '1.55rem',
     lineHeight: 1.05,
     color: 'var(--color-burgundy)',
+  },
+  customerName: {
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '1.05rem',
+    fontWeight: 700,
+    color: 'var(--color-brown)',
+    lineHeight: 1.25,
   },
   metaBlock: {
     display: 'flex',
@@ -578,7 +603,7 @@ const LiveOrdersPage: React.FC = () => {
         {!loading && !error && orders.length > 0 && (
           <section style={s.grid}>
             {orders.map(order => {
-              const isFullyReady = order.items.every(item => item.ready_at !== null);
+              const isFullyReady = isOrderReadyToServe(order, productCategoryMap);
 
               return (
               <article key={order.id} style={isFullyReady ? { ...s.card, ...s.readyCard } : s.card}>
@@ -589,6 +614,9 @@ const LiveOrdersPage: React.FC = () => {
                       <span style={s.ticketNumber}>{order.ticket_number}</span>
                       <span style={getOrderTypeBadgeStyle(order.order_type)}>{getOrderTypeLabel(order.order_type)}</span>
                     </div>
+                    {order.customer_name && (
+                      <span style={s.customerName}>Customer: {order.customer_name}</span>
+                    )}
                   </div>
                   <div style={s.metaBlock}>
                     {isFullyReady && <span style={s.readyServeBadge}>Ready to Serve</span>}
