@@ -43,6 +43,24 @@ assert.match(
 );
 
 assert.match(
+  posPage,
+  /handlePickSetBite/,
+  'Make-it-a-Set bite picker should gate dine-in warm-up before committing the bite'
+);
+
+assert.match(
+  posPage,
+  /handlePickBestieBite/,
+  'Bestie Set bite picker should gate dine-in warm-up before completing the set'
+);
+
+assert.match(
+  posPage,
+  /bestieBiteWarmUpProduct/,
+  'Bestie Set modal should render a warm-up sub-step driven by bestieBiteWarmUpProduct'
+);
+
+assert.match(
   apiOrders,
   /customerName|p_customer_name/,
   'api/orders.ts should require and submit customer name to the order RPC'
