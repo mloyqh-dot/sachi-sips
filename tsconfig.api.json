@@ -18,5 +18,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["api/**/*.ts"]
+  "include": ["api/**/*.ts", "src/lib/constants.ts", "src/types/index.ts"]
 }

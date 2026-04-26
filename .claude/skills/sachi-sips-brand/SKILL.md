@@ -1,6 +1,16 @@
-> **Usage:** Use this skill whenever building any UI component, page, or dashboard for Sachi Sips. Always apply these colors and fonts to maintain brand consistency.
+---
+name: sachi-sips-brand
+description: >
+  Use whenever building, reviewing, or restyling any Sachi Sips UI — POS,
+  station displays, receipts, dashboard, donations, merch. Defines the brand
+  palette (pink/burgundy/brown/butter/yellow/green), typography (Pinyon Script,
+  Alice, Public Sans), button/card patterns, and pairing rules. Apply these
+  tokens instead of introducing new colors or fonts.
+---
 
 # Sachi Sips Brand Identity
+
+> Use this skill whenever building any UI component, page, or dashboard for Sachi Sips. Always apply these colors and fonts to maintain brand consistency.
 
 Sachi Sips is a nonprofit with a warm, handcrafted aesthetic. All UI should feel welcoming, approachable, and cohesive with the physical brand presence at events.
 

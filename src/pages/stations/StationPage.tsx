@@ -445,6 +445,7 @@ const StationPage: React.FC<StationPageProps> = ({ stationName, station, categor
 
     async function loadOrders(isInitialLoad = false) {
       if (isFetchingRef.current) return;
+      if (!isInitialLoad && typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
       isFetchingRef.current = true;
 
@@ -474,9 +475,17 @@ const StationPage: React.FC<StationPageProps> = ({ stationName, station, categor
       void loadOrders(false);
     }, POLL_INTERVAL_MS);
 
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        void loadOrders(false);
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       active = false;
       window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 

@@ -717,11 +717,16 @@ const POSPage: React.FC = () => {
   const [selectedWarmUp, setSelectedWarmUp] = useState<WarmUpOption | null>(null);
   const [selectedPostcardVariant, setSelectedPostcardVariant] = useState<'bw' | 'colour' | null>(null);
   const [makingSetForProduct, setMakingSetForProduct] = useState<CartItem | null>(null);
+  const [pendingSetForProduct, setPendingSetForProduct] = useState<Product | null>(null);
   const [bestieSetStep, setBestieSetStep] = useState<0 | 1 | 2 | 3>(0);
   const [bestieSetDraft, setBestieSetDraft] = useState<Partial<BestieSetCartItem>>({ type: 'bestie_set' });
   const [bestieCustomizingProduct, setBestieCustomizingProduct] = useState<Product | null>(null);
   const [bestieSelectedMilk, setBestieSelectedMilk] = useState<MilkOption | null>(null);
   const [bestieSelectedSugar, setBestieSelectedSugar] = useState<SugarOption | null>(null);
+  const [setBiteWarmUpProduct, setSetBiteWarmUpProduct] = useState<Product | null>(null);
+  const [setBiteWarmUp, setSetBiteWarmUp] = useState<WarmUpOption | null>(null);
+  const [bestieBiteWarmUpProduct, setBestieBiteWarmUpProduct] = useState<Product | null>(null);
+  const [bestieBiteWarmUp, setBestieBiteWarmUp] = useState<WarmUpOption | null>(null);
   const [editingPriceKey, setEditingPriceKey] = useState<string | null>(null);
   const [editingPriceValue, setEditingPriceValue] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
@@ -784,6 +789,7 @@ const POSPage: React.FC = () => {
     setSelectedSugar(null);
     setSelectedWarmUp(null);
     setSelectedPostcardVariant(null);
+    setPendingSetForProduct(null);
   }, []);
 
   const addToCart = useCallback((product: Product) => {
@@ -830,17 +836,29 @@ const POSPage: React.FC = () => {
     }
 
     if (!selectedMilk || (requiresSugarOption(customizingProduct) && !selectedSugar)) return;
+    const drinkOptions: ProductOptions = {
+      milk: selectedMilk,
+      ...(requiresSugarOption(customizingProduct) && selectedSugar ? { sugar: selectedSugar } : {}),
+    };
     commitCartItem({
       product_id: customizingProduct.id,
       name: customizingProduct.name,
       price: customizingProduct.price,
-      options: {
-        milk: selectedMilk,
-        ...(requiresSugarOption(customizingProduct) && selectedSugar ? { sugar: selectedSugar } : {}),
-      },
+      options: drinkOptions,
     });
+
+    if (pendingSetForProduct && pendingSetForProduct.id === customizingProduct.id) {
+      setMakingSetForProduct({
+        product_id: customizingProduct.id,
+        name: customizingProduct.name,
+        price: customizingProduct.price,
+        quantity: 1,
+        options: drinkOptions,
+      });
+    }
+
     closeCustomization();
-  }, [closeCustomization, commitCartItem, customizingProduct, orderType, selectedMilk, selectedSugar, selectedWarmUp, selectedPostcardVariant]);
+  }, [closeCustomization, commitCartItem, customizingProduct, orderType, pendingSetForProduct, selectedMilk, selectedSugar, selectedWarmUp, selectedPostcardVariant]);
 
   const updateQty = useCallback((itemKey: string, delta: number) => {
     setLastSubmittedOrder(null);
@@ -854,33 +872,65 @@ const POSPage: React.FC = () => {
   const handleMakeSet = useCallback((product: Product) => {
     setLastSubmittedOrder(null);
     const existing = cart.find(item => !isBestieSetCartItem(item) && item.product_id === product.id);
-    const targetItem: CartItem = existing && !isBestieSetCartItem(existing)
-      ? existing
-      : {
-        product_id: product.id,
-        name: product.name,
-        price: product.price,
-        quantity: 1,
-      };
 
-    setCart(prev => {
-      if (existing) return prev;
-      return [...prev, targetItem];
-    });
+    if (existing && !isBestieSetCartItem(existing)) {
+      setMakingSetForProduct(existing);
+      if (isMobile) setMobileView('cart');
+      return;
+    }
 
-    setMakingSetForProduct(targetItem);
+    if (isCustomizable(product, orderType)) {
+      setPendingSetForProduct(product);
+      setCustomizingProduct(product);
+      setSelectedMilk(null);
+      setSelectedSugar(null);
+      setSelectedWarmUp(null);
+      setSelectedPostcardVariant(null);
+      return;
+    }
+
+    const newItem: CartItem = {
+      product_id: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: 1,
+    };
+    setCart(prev => [...prev, newItem]);
+    setMakingSetForProduct(newItem);
     if (isMobile) setMobileView('cart');
-  }, [cart, isMobile]);
+  }, [cart, isMobile, orderType]);
 
-  const addMakeItASetBite = useCallback((product: Product) => {
+  const addMakeItASetBite = useCallback((product: Product, options?: ProductOptions) => {
     commitCartItem({
       product_id: product.id,
       name: product.name,
       price: 3.50,
       setLabel: 'Make it a Set',
+      options,
     });
     setMakingSetForProduct(null);
+    setSetBiteWarmUpProduct(null);
+    setSetBiteWarmUp(null);
   }, [commitCartItem]);
+
+  const handlePickSetBite = useCallback((product: Product) => {
+    if (requiresWarmUpOption(product, orderType)) {
+      setSetBiteWarmUpProduct(product);
+      setSetBiteWarmUp(null);
+      return;
+    }
+    addMakeItASetBite(product);
+  }, [addMakeItASetBite, orderType]);
+
+  const confirmSetBiteWarmUp = useCallback(() => {
+    if (!setBiteWarmUpProduct || !setBiteWarmUp) return;
+    addMakeItASetBite(setBiteWarmUpProduct, { warm_up: setBiteWarmUp });
+  }, [addMakeItASetBite, setBiteWarmUp, setBiteWarmUpProduct]);
+
+  const cancelSetBiteWarmUp = useCallback(() => {
+    setSetBiteWarmUpProduct(null);
+    setSetBiteWarmUp(null);
+  }, []);
 
   const closeBestieSet = useCallback(() => {
     setBestieSetStep(0);
@@ -888,6 +938,8 @@ const POSPage: React.FC = () => {
     setBestieCustomizingProduct(null);
     setBestieSelectedMilk(null);
     setBestieSelectedSugar(null);
+    setBestieBiteWarmUpProduct(null);
+    setBestieBiteWarmUp(null);
   }, []);
 
   const productToBestieSubItem = useCallback((product: Product, options?: ProductOptions): BestieSetSubItem => ({
@@ -934,7 +986,7 @@ const POSPage: React.FC = () => {
     });
   }, [bestieCustomizingProduct, bestieSelectedMilk, bestieSelectedSugar, commitBestieDrink]);
 
-  const completeBestieSet = useCallback((product: Product) => {
+  const completeBestieSet = useCallback((product: Product, options?: ProductOptions) => {
     if (!bestieSetDraft.drink1 || !bestieSetDraft.drink2) return;
 
     const setItem: BestieSetCartItem = {
@@ -943,7 +995,7 @@ const POSPage: React.FC = () => {
       setPrice: 18,
       drink1: bestieSetDraft.drink1,
       drink2: bestieSetDraft.drink2,
-      bite: productToBestieSubItem(product),
+      bite: productToBestieSubItem(product, options),
     };
 
     setLastSubmittedOrder(null);
@@ -951,6 +1003,25 @@ const POSPage: React.FC = () => {
     closeBestieSet();
     if (isMobile) setMobileView('cart');
   }, [bestieSetDraft.drink1, bestieSetDraft.drink2, closeBestieSet, isMobile, productToBestieSubItem]);
+
+  const handlePickBestieBite = useCallback((product: Product) => {
+    if (requiresWarmUpOption(product, orderType)) {
+      setBestieBiteWarmUpProduct(product);
+      setBestieBiteWarmUp(null);
+      return;
+    }
+    completeBestieSet(product);
+  }, [completeBestieSet, orderType]);
+
+  const confirmBestieBiteWarmUp = useCallback(() => {
+    if (!bestieBiteWarmUpProduct || !bestieBiteWarmUp) return;
+    completeBestieSet(bestieBiteWarmUpProduct, { warm_up: bestieBiteWarmUp });
+  }, [bestieBiteWarmUp, bestieBiteWarmUpProduct, completeBestieSet]);
+
+  const cancelBestieBiteWarmUp = useCallback(() => {
+    setBestieBiteWarmUpProduct(null);
+    setBestieBiteWarmUp(null);
+  }, []);
 
   const updateCartEntryPrice = useCallback((itemKey: string, price: number) => {
     setLastSubmittedOrder(null);
@@ -1254,27 +1325,63 @@ const POSPage: React.FC = () => {
         </div>
       )}
       {makingSetForProduct && (
-        <div style={s.modalOverlay} onClick={() => setMakingSetForProduct(null)}>
+        <div style={s.modalOverlay} onClick={() => { setMakingSetForProduct(null); cancelSetBiteWarmUp(); }}>
           <div style={s.modalCard} onClick={e => e.stopPropagation()}>
             <div style={s.modalHeader}>
               <div style={s.modalTitleWrap}>
                 <span style={s.modalEyebrow}>Make it a Set</span>
-                <h2 style={s.modalTitle}>Make it a Set add a bite for +$3.50</h2>
-                <p style={s.modalText}>{makingSetForProduct.name}</p>
+                <h2 style={s.modalTitle}>
+                  {setBiteWarmUpProduct ? setBiteWarmUpProduct.name : 'Make it a Set add a bite for +$3.50'}
+                </h2>
+                <p style={s.modalText}>
+                  {setBiteWarmUpProduct
+                    ? 'Choose whether this dine-in bite should be warmed.'
+                    : makingSetForProduct.name}
+                </p>
               </div>
-              <button style={s.modalCloseBtn} onClick={() => setMakingSetForProduct(null)} aria-label="Close make it a set">
+              <button style={s.modalCloseBtn} onClick={() => { setMakingSetForProduct(null); cancelSetBiteWarmUp(); }} aria-label="Close make it a set">
                 x
               </button>
             </div>
-            <div style={s.optionGroup}>
-              {makeItASetBites.map(product => (
-                <button key={product.id} style={s.optionBtn(false)} onClick={() => addMakeItASetBite(product)}>
-                  {product.name} - $3.50
-                </button>
-              ))}
-            </div>
+            {setBiteWarmUpProduct ? (
+              <div style={s.optionGroup}>
+                <label style={s.label}>Warm Up *</label>
+                <div style={s.optionRow}>
+                  {WARM_UP_OPTIONS.map(option => (
+                    <button
+                      key={option.value}
+                      style={s.optionBtn(setBiteWarmUp === option.value)}
+                      onClick={() => setSetBiteWarmUp(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={s.optionGroup}>
+                {makeItASetBites.map(product => (
+                  <button key={product.id} style={s.optionBtn(false)} onClick={() => handlePickSetBite(product)}>
+                    {product.name} - $3.50
+                  </button>
+                ))}
+              </div>
+            )}
             <div style={s.modalFooter}>
-              <button style={s.ghostBtn} onClick={() => setMakingSetForProduct(null)}>Cancel</button>
+              {setBiteWarmUpProduct ? (
+                <>
+                  <button style={s.ghostBtn} onClick={cancelSetBiteWarmUp}>Back</button>
+                  <button
+                    style={s.submitBtn(!setBiteWarmUp)}
+                    disabled={!setBiteWarmUp}
+                    onClick={confirmSetBiteWarmUp}
+                  >
+                    Add Bite
+                  </button>
+                </>
+              ) : (
+                <button style={s.ghostBtn} onClick={() => setMakingSetForProduct(null)}>Cancel</button>
+              )}
             </div>
           </div>
         </div>
@@ -1356,13 +1463,37 @@ const POSPage: React.FC = () => {
               </div>
             )}
 
-            {bestieSetStep === 3 && (
+            {bestieSetStep === 3 && !bestieBiteWarmUpProduct && (
               <div style={s.optionGroup}>
                 {bestieBiteProducts.map(product => (
-                  <button key={product.id} style={s.optionBtn(false)} onClick={() => completeBestieSet(product)}>
+                  <button key={product.id} style={s.optionBtn(false)} onClick={() => handlePickBestieBite(product)}>
                     {product.name} - ${product.price.toFixed(2)}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {bestieSetStep === 3 && bestieBiteWarmUpProduct && (
+              <div style={s.optionGroup}>
+                <label style={s.label}>Warm Up * — {bestieBiteWarmUpProduct.name}</label>
+                <div style={s.optionRow}>
+                  {WARM_UP_OPTIONS.map(option => (
+                    <button
+                      key={option.value}
+                      style={s.optionBtn(bestieBiteWarmUp === option.value)}
+                      onClick={() => setBestieBiteWarmUp(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  style={s.submitBtn(!bestieBiteWarmUp)}
+                  disabled={!bestieBiteWarmUp}
+                  onClick={confirmBestieBiteWarmUp}
+                >
+                  Confirm Bite
+                </button>
               </div>
             )}
 
@@ -1370,6 +1501,10 @@ const POSPage: React.FC = () => {
               <button
                 style={s.ghostBtn}
                 onClick={() => {
+                  if (bestieSetStep === 3 && bestieBiteWarmUpProduct) {
+                    cancelBestieBiteWarmUp();
+                    return;
+                  }
                   setBestieCustomizingProduct(null);
                   setBestieSelectedMilk(null);
                   setBestieSelectedSugar(null);

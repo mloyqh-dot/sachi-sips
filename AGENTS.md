@@ -1,131 +1,79 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This is a Vite + React + TypeScript app for the Sachi Sips POS dashboard. Keep application code in `src/`. Routing lives in `src/App.tsx`, the entry point is `src/main.tsx`, and shared types belong in `src/types/index.ts`. Page-level screens are organized under `src/pages/` (`pos/`, `receipts/`, `dashboard/`). Use `src/lib/supabase.ts` as the single Supabase client entry point. Static assets live in `public/` and `src/assets/`. Database schema work belongs in `supabase/migrations/`; seed data belongs in `supabase/seed/`.
+Vite + React 19 + TypeScript SPA with Vercel serverless API routes for the order workflow.
+
+- `src/` — application code. Routing in `src/App.tsx`, entry in `src/main.tsx`.
+- `src/pages/` — one folder per top-level route: `pos/`, `live-orders/`, `stations/`, `receipts/`, `donations/`, `dashboard/`, `merch/`. The three station pages share `StationPage.tsx`.
+- `src/lib/` — `supabase.ts` (single anon client), `constants.ts` (categories + station map), `orderHistory.ts`, `donations.ts`.
+- `src/types/index.ts` — all domain types (Product, Order, OrderItem, CartEntry, BestieSetCartItem, Donation, …).
+- `api/` — Vercel serverless functions. Mirrored locally by `vite.config.ts` so `/api/*` works in `npm run dev`.
+- `supabase/migrations/` — numbered SQL migrations. Apply in order. The latest migration is `013_add_customer_name_to_orders.sql`.
+- `supabase/seed/` — optional product seed scripts.
+- `scripts/order-contracts.test.mjs` — static contract assertions over key API + page files.
+- `public/`, `src/assets/` — static assets.
 
 ## Build, Test, and Development Commands
-- `npm run dev`: start the local Vite server with HMR.
-- `npm run build`: run TypeScript project builds, then create the production bundle in `dist/`.
-- `npm run lint`: run ESLint across the repo.
-- `npm run preview`: serve the built app locally for smoke checks.
+Run from `C:\Projects\sachi-sips`.
 
-Run commands from the repository root: `C:\projects\sachi-sips`.
+- `npm run dev` — Vite dev server with HMR on http://localhost:5173. Local API routes are wired via `vite.config.ts`.
+- `npm run build` — `tsc -b` then Vite production build into `dist/`.
+- `npm run lint` — ESLint over the repo.
+- `npm run test:contracts` — runs `scripts/order-contracts.test.mjs`. Static checks; no runtime, no DB.
+- `npm run preview` — serve the built bundle locally.
+
+`npm run lint`, `npm run build`, and `npm run test:contracts` are required pre-push checks.
 
 ## Coding Style & Naming Conventions
-Follow the existing TypeScript + React style:
-- Use functional components and typed props/state.
-- Prefer PascalCase for components (`POSPage.tsx`), camelCase for functions/variables, and UPPER_SNAKE_CASE for constants.
-- Keep domain types centralized in `src/types/index.ts`.
-- Reuse the shared Supabase client instead of creating new clients.
-
-The current codebase uses semicolons and inline style objects extensively; match that style unless you are refactoring a full area. Linting is configured in `eslint.config.js` with `@eslint/js`, `typescript-eslint`, `react-hooks`, and `react-refresh`.
+- Functional components with typed props/state.
+- PascalCase for components (`POSPage.tsx`), camelCase for functions/variables, UPPER_SNAKE_CASE for constants.
+- Domain types live in `src/types/index.ts`. Import them from there rather than redefining.
+- Reuse the shared `supabase` client; never instantiate a second one.
+- The codebase uses semicolons and inline style objects (typed `as const` where needed). Match the existing style unless refactoring a whole area.
+- ESLint is configured in `eslint.config.js` with `@eslint/js`, `typescript-eslint`, `react-hooks`, and `react-refresh`.
 
 ## UI Design & Brand Consistency
-Preserve the existing Sachi Sips visual system. Use the established palette: pink `#E59090`, burgundy `#682837`, brown `#52301A`, green `#4D4823`, butter `#F0E4BF`, and yellow `#FFE373`. Prefer butter panels on pink or warm neutral surfaces, burgundy for headings, and brown for body text.
+Preserve the existing Sachi Sips visual system. Palette: pink `#E59090`, burgundy `#682837`, brown `#52301A`, green `#4D4823`, butter `#F0E4BF`, yellow `#FFE373`. Burgundy for headings, brown for body, butter panels on pink/warm surfaces.
 
-Typography should stay consistent with the current app: `Pinyon Script` for decorative brand moments only, `Alice` for headings, and `Public Sans` for UI/body text. Favor rounded corners, soft shadows, warm borders, and approachable spacing over stark enterprise styling. Reuse the existing inline-style patterns and avoid introducing a conflicting visual language.
+Typography: `Pinyon Script` for the wordmark only, `Alice` for headings, `Public Sans` for UI/body text.
 
-For new UI, keep interactions simple, mobile-friendly, and event-staff oriented. Avoid adding multiple competing accent colors in one view; use yellow or green sparingly for emphasis, not both as primary highlights.
-
-## Testing Guidelines
-There is no automated test suite committed yet. Until one is added, treat `npm run lint` and `npm run build` as required pre-PR checks. For data-flow changes, verify the main routes manually: `/`, `/receipts`, and `/dashboard`. If you add tests, place them beside the feature or under `src/__tests__/` and use `*.test.ts` or `*.test.tsx`.
+Soft borders, rounded corners, warm shadows. Never use yellow and green together as primary accents in the same view. Full guidance is in the `sachi-sips-brand` skill — load it when building or restyling UI.
 
 ## React & Data Patterns
-When extending React code, favor clear composition over piling on boolean mode props. Extract explicit variants or shared subcomponents when a component starts carrying multiple visual or behavioral modes. Keep render logic straightforward and avoid unnecessary abstraction in this small app.
+- Favour clear composition over piling boolean mode props on a single component. The station page already factors three station variants through `StationPage.tsx` props rather than three forks.
+- Avoid serial waterfalls when requests are independent (`DashboardPage` uses `Promise.all` for orders + donations).
+- All polling pages (Live Orders, stations) use a `isFetchingRef` guard plus an `active` flag for unmount safety. Follow this pattern when adding new polled views.
+- For Supabase: route all access through `src/lib/supabase.ts`, put schema updates in `supabase/migrations/`, and consider RLS, constraints, and indexes whenever adding new tables or queries.
 
-For async work, avoid serial client-side waterfalls when requests are independent. For Supabase changes, route all access through `src/lib/supabase.ts`, put schema updates in `supabase/migrations/`, and consider RLS, constraints, and indexes whenever adding new tables or queries.
+## Order Workflow (Reference)
+Cashier creates a cart on `/`, submits it to `/api/orders` (service role) which calls the `create_order` RPC and returns a persisted ticket. The kitchen sees live tickets at `/live-orders` (5s polling) and per-station queues under `/stations/*`. Stations mark their categories ready via `/api/mark-station-ready`; the master queue badges them. `/api/complete-order` retires a ticket to `status='completed'`. Receipts and the owner dashboard read completed orders from `/api/orders-history`. Donations have an independent flow at `/donations` writing to a separate `donations` table.
+
+`POSPage` enforces customization on the way in:
+- Matcha + Hojicha lattes require `milk`. Strawberry/Lychee Matcha skip `sugar`. Banana Hojicha is oat-only.
+- Dine-in Shio Pan and Spam Musubi prompt for `warm_up`.
+- Postcards prompt for B&W vs Colour.
+- The "+ Set" shortcut on a customizable drink chains through the customization modal before opening the bite picker, so set-bundled drinks always carry their milk/sugar option.
+
+## Testing Guidelines
+- Static checks: `npm run lint`, `npm run build`, `npm run test:contracts`.
+- No runtime test suite yet. For data-flow changes, manually verify the smoke path:
+  1. Open `/`, create an order with a customized latte and a bite, customer name set.
+  2. Confirm it appears on `/live-orders` and on the matching station pages only.
+  3. Mark each station ready; confirm the master queue chips flip and the "Ready to Serve" badge appears.
+  4. Mark served; confirm it shows on `/receipts` and `/dashboard`.
+  5. Record a donation on `/donations`; confirm it lands in the dashboard's donation panels (not in sales revenue).
+- If you add tests, place them beside the feature or under `src/__tests__/` and use `*.test.ts` / `*.test.tsx`.
+- When adding new API routes or critical UI invariants, also add an assertion to `scripts/order-contracts.test.mjs`.
 
 ## Commit & Pull Request Guidelines
-Local `.git` history is not available in this workspace, so use clear imperative commit subjects such as `Add receipt filtering` or `Fix dashboard totals`. Keep commits focused and avoid mixing UI, schema, and config changes.
-
-PRs should include a concise summary, note any Supabase migration or environment variable changes, and attach screenshots for UI updates. Link the relevant issue or task when one exists.
+- Use clear imperative commit subjects (`Add receipt filtering`, `Fix dashboard totals`).
+- Keep commits focused; don't mix UI, schema, and config changes.
+- PRs should include a concise summary, note any Supabase migration or environment variable changes, and attach screenshots for UI updates.
 
 ## Security & Configuration Tips
-Keep secrets in `.env.local` only. Required variables are `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Never hardcode credentials, and apply schema changes through migration files rather than ad hoc database edits.
-
-## POS → Kitchen Order Workflow (Overview)
-
-This project extends a basic POS system into a simple end-to-end order workflow:
-
-* Cashier creates order from cart
-* Order is stored persistently
-* Kitchen views orders on a **Live Orders** page
-* Kitchen marks orders as **completed/served**
-* Completed orders are stored for history/dashboard
-
-The system is built for a **Vercel + Supabase architecture**, and should remain lightweight, modular, and extensible (e.g. for future printing and analytics).
-
----
-
-## Phases
-
-### Phase 1 — Persistent Orders (Completed)
-
-* Convert cart checkout into server-side order creation
-* Store orders and line items in DB
-* Generate ticket number, timestamp, and default `live` status
-* Clear cart only after successful submission
-* Show confirmation state
-
----
-
-### Phase 2 — Live Orders Page
-
-* Create `/live-orders` page for kitchen staff
-* Display all orders with status `live`
-* Show:
-
-  * ticket number
-  * time
-  * items + quantities
-  * modifiers (e.g. milk/sugar)
-* Sort oldest first
-* Display-only (no actions yet)
-
----
-
-### Phase 3 — Auto Refresh
-
-* Add polling to `/live-orders` (e.g. every few seconds)
-* New orders should appear automatically
-* Avoid full page reloads or UI flicker
-
----
-
-### Phase 4 — Complete/Serve Orders
-
-* Add “Mark as Served/Completed” action
-* Update order status → `completed`
-* Remove completed orders from live view
-* Persist completion timestamp
-
----
-
-### Phase 5 — Order History Foundation
-
-* Enable querying completed orders separately
-* Optionally add a simple history page
-* Structure data for future dashboards/analytics
-
----
-
-### Phase 6 — Hardening
-
-* Prevent duplicate submissions
-* Add loading/error/empty states
-* Ensure safe status updates
-* Improve kitchen readability
-* Prepare for future extensions (printing, roles, notifications)
-
----
-
-## Key Constraints
-
-* Preserve existing POS/cart behavior
-* Keep implementation MVP-level (avoid overengineering)
-* Maintain clean separation:
-
-  * cashier flow
-  * order storage
-  * kitchen view
-* Ensure all order data is persistently stored (no frontend-only state)
+- Secrets live in `.env.local` only. Required:
+  - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (frontend)
+  - `SUPABASE_URL` (or fall back to `VITE_SUPABASE_URL` locally), `SUPABASE_SERVICE_ROLE_KEY` (server-only)
+- Never prefix the service role key with `VITE_`. It must not be reachable from the browser bundle.
+- Never hardcode credentials. Apply schema changes through migration files only.
+- All write paths for orders, completion, station readiness, and donations go through service-role API routes. Anon clients only read `products`.

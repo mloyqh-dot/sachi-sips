@@ -490,6 +490,7 @@ const LiveOrdersPage: React.FC = () => {
 
     async function loadOrders(isInitialLoad = false) {
       if (isFetchingRef.current) return;
+      if (!isInitialLoad && typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
       isFetchingRef.current = true;
 
@@ -519,9 +520,17 @@ const LiveOrdersPage: React.FC = () => {
       void loadOrders(false);
     }, POLL_INTERVAL_MS);
 
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        void loadOrders(false);
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       active = false;
       window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
@@ -668,15 +677,23 @@ const LiveOrdersPage: React.FC = () => {
                 <div style={s.actions}>
                   <button
                     type="button"
-                    style={s.actionButton(Boolean(completingOrderIds[order.id]))}
-                    disabled={Boolean(completingOrderIds[order.id])}
+                    style={s.actionButton(Boolean(completingOrderIds[order.id]) || !isFullyReady)}
+                    disabled={Boolean(completingOrderIds[order.id]) || !isFullyReady}
                     onClick={() => {
                       void handleCompleteOrder(order);
                     }}
                   >
-                    {completingOrderIds[order.id] ? 'Marking as Served...' : 'Mark as Served'}
+                    {completingOrderIds[order.id]
+                      ? 'Marking as Served...'
+                      : isFullyReady
+                        ? 'Mark as Served'
+                        : 'Waiting on stations'}
                   </button>
-                  <span style={s.actionHint}>Completing a ticket removes it from the live queue but keeps it stored for reporting.</span>
+                  <span style={s.actionHint}>
+                    {isFullyReady
+                      ? 'Completing a ticket removes it from the live queue but keeps it stored for reporting.'
+                      : 'All station items must be marked ready before this ticket can be served.'}
+                  </span>
                   {orderErrors[order.id] && <span style={s.inlineError}>{orderErrors[order.id]}</span>}
                 </div>
               </article>

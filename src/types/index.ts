@@ -101,20 +101,3 @@ export interface DonationPayload {
   note?: string | null;
 }
 
-export interface Transaction {
-  id: string;
-  created_at: string;
-  items: CartEntry[];
-  total: number;
-  payment_method: PaymentMethod;
-  notes?: string;
-  staff_name: string;
-}
-
-export interface Receipt {
-  id: string;
-  transaction_id: string;
-  created_at: string;
-  total: number;
-  items: CartEntry[];
-}

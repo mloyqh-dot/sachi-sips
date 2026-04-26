@@ -13,6 +13,7 @@ const liveOrdersPage = readFileSync(new URL('../src/pages/live-orders/LiveOrders
 const donationsPage = readFileSync(new URL('../src/pages/donations/DonationsPage.tsx', import.meta.url), 'utf8');
 const receiptsPage = readFileSync(new URL('../src/pages/receipts/ReceiptsPage.tsx', import.meta.url), 'utf8');
 const stationApi = readFileSync(new URL('../api/mark-station-ready.ts', import.meta.url), 'utf8');
+const stationConstants = readFileSync(new URL('../src/lib/constants.ts', import.meta.url), 'utf8');
 const stationPage = readFileSync(new URL('../src/pages/stations/StationPage.tsx', import.meta.url), 'utf8');
 const customerNameMigration = readFileSync(new URL('../supabase/migrations/013_add_customer_name_to_orders.sql', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
@@ -33,6 +34,12 @@ assert.match(
   posPage,
   /customerName|Customer name/,
   'POS checkout should collect and submit customer name for handoff'
+);
+
+assert.match(
+  posPage,
+  /pendingSetForProduct/,
+  'POS "+ Set" flow should route customizable drinks through the customization modal before opening the bite picker'
 );
 
 assert.match(
@@ -71,18 +78,24 @@ assert.match(
   'Customer-name migration should refresh the PostgREST schema cache after changing the RPC signature'
 );
 
-for (const category of ['Filter Coffee', 'Mocktail', 'Bites', 'Bakes']) {
+assert.match(
+  stationApi,
+  /from\s+['"]\.\.\/src\/lib\/constants['"]/,
+  'api/mark-station-ready.ts should import the shared STATION_CATEGORIES from src/lib/constants to avoid drift'
+);
+
+for (const category of ['Filter Coffee', 'Mocktail', 'Bites', 'Bakes', 'Matcha']) {
   assert.match(
-    stationApi,
+    stationConstants,
     new RegExp(category),
-    `api/mark-station-ready.ts should use current menu category "${category}"`
+    `src/lib/constants.ts should map current menu category "${category}" to a station`
   );
 }
 
 assert.doesNotMatch(
-  stationApi,
+  stationConstants,
   /'Coffee'|'Specials'|'Savory'|'Bakery'/,
-  'api/mark-station-ready.ts should not use old menu category names'
+  'src/lib/constants.ts should not use old menu category names'
 );
 
 assert.match(
