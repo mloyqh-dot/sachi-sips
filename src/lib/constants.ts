@@ -38,7 +38,7 @@ export const CATEGORY_META: Record<Category, { label: string; description: strin
 
 export const STATION_CATEGORIES = {
   hojicha: ['Matcha'] as Category[],
-  coffee: ['Filter Coffee', 'Mocktail'] as Category[],
-  kitchen: ['Bites', 'Bakes'] as Category[],
+  coffee: ['Filter Coffee'] as Category[],
+  kitchen: ['Bites', 'Bakes', 'Mocktail'] as Category[],
   merch: ['Merch'] as Category[],
 } as const;
