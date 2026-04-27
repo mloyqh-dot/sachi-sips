@@ -33,6 +33,7 @@ const WARM_UP_OPTIONS: { value: WarmUpOption; label: string }[] = [
   { value: 'warm_up', label: 'Warm Up' },
   { value: 'no_warm_up', label: 'No Warm Up' },
 ];
+const FINAL_TOTAL_PRICE_KEY = 'final-total';
 
 function isPostcard(product: Product) {
   return product.name === "Sachi's Postcard";
@@ -463,6 +464,30 @@ const s = {
     color: 'var(--color-burgundy)',
     letterSpacing: '-0.02em',
   },
+  totalPriceBtn: {
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '1.375rem',
+    fontWeight: 600,
+    color: 'var(--color-burgundy)',
+    padding: 0,
+    textAlign: 'right' as const,
+  },
+  totalPriceInput: {
+    width: '96px',
+    padding: '5px 8px',
+    borderRadius: '8px',
+    border: '1px solid rgba(104, 40, 55, 0.2)',
+    background: 'rgba(255, 255, 255, 0.72)',
+    color: 'var(--color-burgundy)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '1rem',
+    fontWeight: 600,
+    textAlign: 'right' as const,
+    boxSizing: 'border-box' as const,
+  },
   label: {
     fontFamily: "'Public Sans', sans-serif",
     fontSize: '11px',
@@ -729,6 +754,7 @@ const POSPage: React.FC = () => {
   const [bestieBiteWarmUp, setBestieBiteWarmUp] = useState<WarmUpOption | null>(null);
   const [editingPriceKey, setEditingPriceKey] = useState<string | null>(null);
   const [editingPriceValue, setEditingPriceValue] = useState('');
+  const [finalTotalOverride, setFinalTotalOverride] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [orderType, setOrderType] = useState<OrderType>('dine_in');
   const [staffName, setStaffName] = useState('');
@@ -762,6 +788,10 @@ const POSPage: React.FC = () => {
       setLoading(false);
     })();
   }, []);
+
+  useEffect(() => {
+    setFinalTotalOverride(null);
+  }, [cart]);
 
   const commitCartItem = useCallback((item: Omit<CartItem, 'quantity'>) => {
     setLastSubmittedOrder(null);
@@ -1035,14 +1065,22 @@ const POSPage: React.FC = () => {
 
   const commitEditedPrice = useCallback((itemKey: string, quantity = 1) => {
     const parsed = Number.parseFloat(editingPriceValue);
-    const nextPrice = Number.isFinite(parsed) ? parsed / quantity : 0;
+    const nextPrice = Number.isFinite(parsed) ? Math.max(0, parsed) / quantity : 0;
+    if (itemKey === FINAL_TOTAL_PRICE_KEY) {
+      setLastSubmittedOrder(null);
+      setFinalTotalOverride(roundPrice(nextPrice));
+      setEditingPriceKey(null);
+      setEditingPriceValue('');
+      return;
+    }
     updateCartEntryPrice(itemKey, roundPrice(nextPrice));
     setEditingPriceKey(null);
     setEditingPriceValue('');
   }, [editingPriceValue, updateCartEntryPrice]);
 
   // Derived
-  const total = cart.reduce((sum, i) => sum + (isBestieSetCartItem(i) ? i.setPrice : i.price * i.quantity), 0);
+  const orderSubtotal = cart.reduce((sum, i) => sum + (isBestieSetCartItem(i) ? i.setPrice : i.price * i.quantity), 0);
+  const finalTotal = finalTotalOverride ?? orderSubtotal;
   const cartCount = cart.reduce((sum, i) => sum + (isBestieSetCartItem(i) ? 1 : i.quantity), 0);
   const canSubmit = cart.length > 0 && staffName.trim().length > 0 && customerName.trim().length > 0 && !submitting;
   const canConfirmCustomization = customizingProduct && (
@@ -1082,15 +1120,15 @@ const POSPage: React.FC = () => {
 
     try {
       const orderItems = explodeCartEntries(cart);
-      const orderTotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const orderSubtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const payload = {
         p_staff_name: staffName.trim(),
         p_customer_name: customerName.trim(),
         p_payment_method: paymentMethod,
         p_order_type: orderType,
         p_notes: notes.trim() || null,
-        p_subtotal: orderTotal,
-        p_total: orderTotal,
+        p_subtotal: orderSubtotal,
+        p_total: finalTotal,
         p_items: orderItems.map(item => ({
           product_id: item.product_id,
           name: item.name,
@@ -1110,6 +1148,7 @@ const POSPage: React.FC = () => {
       setNotes('');
       setPaymentMethod('cash');
       setOrderType('dine_in');
+      setFinalTotalOverride(null);
       setLastSubmittedOrder(order as Pick<Order, 'ticket_number' | 'created_at' | 'total'>);
       if (isMobile) setMobileView('products');
     } catch (error) {
@@ -1150,6 +1189,39 @@ const POSPage: React.FC = () => {
         aria-label="Edit price"
       >
         ${value.toFixed(2)} ✎
+      </button>
+    )
+  );
+
+  const renderEditableFinalTotal = () => (
+    editingPriceKey === FINAL_TOTAL_PRICE_KEY ? (
+      <input
+        style={s.totalPriceInput}
+        type="number"
+        min="0"
+        step="0.01"
+        value={editingPriceValue}
+        autoFocus
+        onChange={e => setEditingPriceValue(e.target.value)}
+        onBlur={() => commitEditedPrice(FINAL_TOTAL_PRICE_KEY)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') commitEditedPrice(FINAL_TOTAL_PRICE_KEY);
+          if (e.key === 'Escape') {
+            setEditingPriceKey(null);
+            setEditingPriceValue('');
+          }
+        }}
+      />
+    ) : (
+      <button
+        style={s.totalPriceBtn}
+        onClick={() => {
+          setEditingPriceKey(FINAL_TOTAL_PRICE_KEY);
+          setEditingPriceValue(finalTotal.toFixed(2));
+        }}
+        aria-label="Edit final total"
+      >
+        ${finalTotal.toFixed(2)} ✎
       </button>
     )
   );
@@ -1591,7 +1663,7 @@ const POSPage: React.FC = () => {
       <div style={s.cartFooter}>
         <div style={s.totalRow}>
           <span style={s.totalLabel}>Total</span>
-          <span style={s.totalAmount}>${total.toFixed(2)}</span>
+          {renderEditableFinalTotal()}
         </div>
 
         <div>
@@ -1674,7 +1746,7 @@ const POSPage: React.FC = () => {
           disabled={!canSubmit}
           onClick={handleSubmit}
         >
-          {submitting ? 'Creating Order…' : `Create Order · $${total.toFixed(2)}`}
+          {submitting ? 'Creating Order…' : `Create Order · $${finalTotal.toFixed(2)}`}
         </button>
       </div>
     </div>

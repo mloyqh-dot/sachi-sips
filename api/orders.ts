@@ -193,8 +193,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const submittedSubtotal = typeof body.subtotal === 'number' ? roundCurrency(body.subtotal) : computedSubtotal;
   const submittedTotal = typeof body.total === 'number' ? roundCurrency(body.total) : computedSubtotal;
 
-  if (submittedSubtotal !== computedSubtotal || submittedTotal !== computedSubtotal) {
-    res.status(400).json({ error: 'Order totals do not match item totals' });
+  if (submittedSubtotal !== computedSubtotal) {
+    res.status(400).json({ error: 'Order subtotal does not match item totals' });
+    return;
+  }
+
+  if (!Number.isFinite(submittedTotal) || submittedTotal < 0) {
+    res.status(400).json({ error: 'Order total must be a non-negative amount' });
     return;
   }
 
@@ -204,7 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     p_payment_method: body.paymentMethod,
     p_notes: notes || null,
     p_subtotal: computedSubtotal,
-    p_total: computedSubtotal,
+    p_total: submittedTotal,
     p_items: canonicalItems,
     p_order_type: orderType,
   });

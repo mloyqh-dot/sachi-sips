@@ -25,6 +25,30 @@ assert.match(
 );
 
 assert.doesNotMatch(
+  apiOrders,
+  /submittedSubtotal !== computedSubtotal \|\| submittedTotal !== computedSubtotal/,
+  'api/orders.ts should allow an edited final total while still validating item subtotal'
+);
+
+assert.match(
+  apiOrders,
+  /p_total:\s*submittedTotal/,
+  'api/orders.ts should pass the submitted final total to the create_order RPC'
+);
+
+assert.match(
+  posPage,
+  /finalTotal/,
+  'POS cart should track an editable final total separate from the computed item subtotal'
+);
+
+assert.match(
+  posPage,
+  /p_subtotal:\s*orderSubtotal[\s\S]*p_total:\s*finalTotal/,
+  'POS checkout should submit computed subtotal and editable final total separately'
+);
+
+assert.doesNotMatch(
   posPage,
   /supabase\.rpc\('create_order'/,
   'POS order creation should not use the anon Supabase create_order RPC path locally'
