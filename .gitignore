@@ -26,3 +26,4 @@ dist-ssr
 # Local assistant app exports/config
 .agents/
 .claude/launch.json
+.worktrees/
