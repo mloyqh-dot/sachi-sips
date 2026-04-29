@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { getPickupSlotLabel, getPreorderLabel } from '../../lib/orderFormatting';
 import type { Category, Order, OrderItem, OrderRecord, Product } from '../../types';
 
 export interface StationPageProps {
@@ -291,6 +292,21 @@ const s = {
     textTransform: 'uppercase' as const,
     color: READY_GREEN,
   },
+  preorderBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0.3rem 0.7rem',
+    borderRadius: '999px',
+    background: 'rgba(229, 144, 144, 0.18)',
+    border: '1px solid rgba(229, 144, 144, 0.32)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '11px',
+    fontWeight: 800,
+    letterSpacing: '0.05em',
+    textTransform: 'uppercase' as const,
+    color: 'var(--color-burgundy)',
+  },
   notesBlock: {
     display: 'flex',
     flexDirection: 'column' as const,
@@ -513,6 +529,8 @@ const StationPage: React.FC<StationPageProps> = ({ stationName, station, categor
     .map(order => ({
       ...order,
       items: order.items.filter(item => {
+        if (item.prep_required === false) return false;
+
         const category = productCategoryMap.get(item.product_id);
         return category ? categories.includes(category) : false;
       }),
@@ -544,7 +562,7 @@ const StationPage: React.FC<StationPageProps> = ({ stationName, station, categor
             items: entry.items.map(item => {
               const category = productCategoryMap.get(item.product_id);
 
-              if (!category || !categories.includes(category)) {
+              if (item.prep_required === false || !category || !categories.includes(category)) {
                 return item;
               }
 
@@ -605,9 +623,15 @@ const StationPage: React.FC<StationPageProps> = ({ stationName, station, categor
                       <div style={s.ticketMetaRow}>
                         <span style={s.ticketNumber}>{order.ticket_number}</span>
                         <span style={getOrderTypeBadgeStyle(order.order_type)}>{getOrderTypeLabel(order.order_type)}</span>
+                        {order.order_source === 'preorder' && <span style={s.preorderBadge}>Preorder</span>}
                       </div>
                       {order.customer_name && (
                         <span style={s.customerName}>Customer: {order.customer_name}</span>
+                      )}
+                      {order.order_source === 'preorder' && (
+                        <span style={s.itemMeta}>
+                          {getPreorderLabel(order)} | Pickup {getPickupSlotLabel(order)} | {order.preorder_payment_status ?? 'Payment unknown'}
+                        </span>
                       )}
                     </div>
                     <div style={s.metaBlock}>
