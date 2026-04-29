@@ -76,6 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       staff_name,
       customer_name,
       order_source,
+      external_order_key,
       external_order_number,
       external_order_name,
       scheduled_for,

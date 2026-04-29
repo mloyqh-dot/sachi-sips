@@ -84,6 +84,7 @@ export interface Order {
   staff_name: string;
   customer_name?: string | null;
   order_source: OrderSource;
+  external_order_key?: string | null;
   external_order_number?: string | null;
   external_order_name?: string | null;
   scheduled_for?: string | null;

@@ -13,6 +13,7 @@ create table if not exists order_import_batches (
 
 alter table orders
   add column if not exists order_source text not null default 'pos',
+  add column if not exists external_order_key text,
   add column if not exists external_order_number text,
   add column if not exists external_order_name text,
   add column if not exists scheduled_for timestamptz,
@@ -46,6 +47,7 @@ alter table orders
     order_source = 'pos'
     or (
       external_order_number is not null
+      and external_order_key is not null
       and scheduled_for is not null
       and release_at is not null
       and prep_due_at is not null
@@ -53,7 +55,7 @@ alter table orders
   );
 
 create unique index if not exists idx_orders_preorder_external_number
-  on orders (external_order_number)
+  on orders (external_order_key)
   where order_source = 'preorder';
 
 create index if not exists idx_orders_live_source_release
@@ -110,6 +112,7 @@ returns table (
   order_type text,
   customer_name text,
   order_source text,
+  external_order_key text,
   external_order_number text,
   external_order_name text,
   scheduled_for timestamptz,
@@ -153,6 +156,7 @@ begin
     updated_order.order_type,
     updated_order.customer_name,
     updated_order.order_source,
+    updated_order.external_order_key,
     updated_order.external_order_number,
     updated_order.external_order_name,
     updated_order.scheduled_for,
@@ -181,6 +185,7 @@ returns table (
   order_type text,
   customer_name text,
   order_source text,
+  external_order_key text,
   external_order_number text,
   external_order_name text,
   scheduled_for timestamptz,
@@ -226,6 +231,7 @@ begin
     updated_order.order_type,
     updated_order.customer_name,
     updated_order.order_source,
+    updated_order.external_order_key,
     updated_order.external_order_number,
     updated_order.external_order_name,
     updated_order.scheduled_for,
