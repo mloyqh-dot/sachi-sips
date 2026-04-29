@@ -68,6 +68,18 @@ assert.match(
 
 assert.match(
   posPage,
+  /banana hojicha/i,
+  'POS customization should recognize Banana Hojicha as a special-case drink'
+);
+
+assert.match(
+  posPage,
+  /function requiresSugarOption\(product: Product\) \{\s*return requiresMilkOption\(product\) && !\/[^/]*banana hojicha/i,
+  'POS customization should skip sugar selection for Banana Hojicha'
+);
+
+assert.match(
+  posPage,
   /handlePickSetBite/,
   'Make-it-a-Set bite picker should gate dine-in warm-up before committing the bite'
 );

@@ -44,7 +44,7 @@ function requiresMilkOption(product: Product) {
 }
 
 function requiresSugarOption(product: Product) {
-  return requiresMilkOption(product) && !/strawberry matcha|lychee matcha/i.test(product.name);
+  return requiresMilkOption(product) && !/strawberry matcha|lychee matcha|banana hojicha/i.test(product.name);
 }
 
 function requiresWarmUpOption(product: Product, orderType: OrderType) {
