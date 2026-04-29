@@ -10,6 +10,7 @@ import {
   getOrderItemCount,
   getOrderSearchText,
 } from '../../lib/orderHistory';
+import { getPickupSlotLabel, getPreorderLabel } from '../../lib/orderFormatting';
 
 type PaymentFilter = 'all' | PaymentMethod;
 
@@ -350,6 +351,9 @@ const ReceiptsPage: React.FC = () => {
                   {order.customer_name && (
                     <div style={s.listMeta}>Customer: {order.customer_name}</div>
                   )}
+                  {order.order_source === 'preorder' && (
+                    <div style={s.listMeta}>Preorder: {getPreorderLabel(order)}</div>
+                  )}
                   <div style={s.listMeta}>
                     {formatDateTime(order.completed_at)} · {formatPaymentMethod(order.payment_method)} · {getOrderItemCount(order)} items
                   </div>
@@ -391,6 +395,14 @@ const ReceiptsPage: React.FC = () => {
                       <span style={s.label}>Staff</span>
                       <span style={s.metaValue}>{selectedOrder.staff_name}</span>
                     </div>
+                    {selectedOrder.order_source === 'preorder' && (
+                      <div style={s.metaCell}>
+                        <span style={s.label}>Preorder</span>
+                        <span style={s.metaValue}>
+                          {getPreorderLabel(selectedOrder)} | Pickup {getPickupSlotLabel(selectedOrder)} | {selectedOrder.preorder_payment_status ?? 'Payment unknown'}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {selectedOrder.notes && (

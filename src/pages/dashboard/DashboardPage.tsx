@@ -11,6 +11,7 @@ import {
   getOrderSearchText,
 } from '../../lib/orderHistory';
 import { fetchDonations } from '../../lib/donations';
+import { getPreorderLabel } from '../../lib/orderFormatting';
 
 type SortKey = 'completed_at' | 'ticket_number' | 'total' | 'payment_method' | 'staff_name' | 'item_count';
 type SortDirection = 'asc' | 'desc';
@@ -317,6 +318,10 @@ const DashboardPage: React.FC = () => {
 
   const metrics = useMemo(() => {
     const salesRevenue = filteredOrders.reduce((sum, order) => sum + Number(order.total), 0);
+    const preorderOrders = filteredOrders.filter(order => order.order_source === 'preorder');
+    const posOrders = filteredOrders.filter(order => order.order_source !== 'preorder');
+    const preorderRevenue = preorderOrders.reduce((sum, order) => sum + Number(order.total), 0);
+    const posRevenue = posOrders.reduce((sum, order) => sum + Number(order.total), 0);
     const donationTotal = donations.reduce((sum, donation) => sum + Number(donation.amount), 0);
     const itemCount = filteredOrders.reduce((sum, order) => sum + getOrderItemCount(order), 0);
     const paymentTotals = new Map<PaymentMethod, number>();
@@ -360,6 +365,10 @@ const DashboardPage: React.FC = () => {
 
     return {
       salesRevenue,
+      preorderRevenue,
+      posRevenue,
+      preorderCount: preorderOrders.length,
+      posCount: posOrders.length,
       donationTotal,
       combinedCollected: salesRevenue + donationTotal,
       itemCount,
@@ -465,6 +474,16 @@ const DashboardPage: React.FC = () => {
                 <span style={s.metricValue}>{formatCurrency(Math.max(...filteredOrders.map(order => Number(order.total)), 0))}</span>
                 <span style={s.metricNote}>Highest ticket in current view</span>
               </div>
+              <div style={s.metric}>
+                <span style={s.label}>POS Sales</span>
+                <span style={s.metricValue}>{formatCurrency(metrics.posRevenue)}</span>
+                <span style={s.metricNote}>{metrics.posCount} completed POS orders</span>
+              </div>
+              <div style={s.metric}>
+                <span style={s.label}>Preorder Sales</span>
+                <span style={s.metricValue}>{formatCurrency(metrics.preorderRevenue)}</span>
+                <span style={s.metricNote}>{metrics.preorderCount} completed TakeApp orders</span>
+              </div>
             </section>
 
             <section style={s.sectionGrid}>
@@ -562,6 +581,7 @@ const DashboardPage: React.FC = () => {
                       <tr key={order.id}>
                         <td style={s.td}>
                           <span style={s.ticket}>{order.ticket_number}</span>
+                          {order.order_source === 'preorder' && <div style={s.itemLine}>Preorder: {getPreorderLabel(order)}</div>}
                           {order.notes && <div style={s.itemLine}>Note: {order.notes}</div>}
                         </td>
                         <td style={s.td}>{formatDateTime(order.completed_at)}</td>

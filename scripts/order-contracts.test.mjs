@@ -4,18 +4,23 @@ import assert from 'node:assert/strict';
 const apiOrders = readFileSync(new URL('../api/orders.ts', import.meta.url), 'utf8');
 const apiOrdersHistory = readFileSync(new URL('../api/orders-history.ts', import.meta.url), 'utf8');
 const apiLiveOrders = readFileSync(new URL('../api/live-orders.ts', import.meta.url), 'utf8');
+const apiPreorders = readFileSync(new URL('../api/preorders.ts', import.meta.url), 'utf8');
+const apiCollectPreorder = readFileSync(new URL('../api/collect-preorder.ts', import.meta.url), 'utf8');
 const apiDonations = readFileSync(new URL('../api/donations.ts', import.meta.url), 'utf8');
 const apiDonationsHistory = readFileSync(new URL('../api/donations-history.ts', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const posPage = readFileSync(new URL('../src/pages/pos/POSPage.tsx', import.meta.url), 'utf8');
 const dashboardPage = readFileSync(new URL('../src/pages/dashboard/DashboardPage.tsx', import.meta.url), 'utf8');
 const liveOrdersPage = readFileSync(new URL('../src/pages/live-orders/LiveOrdersPage.tsx', import.meta.url), 'utf8');
+const preorderPage = readFileSync(new URL('../src/pages/preorders/PreordersPage.tsx', import.meta.url), 'utf8');
 const donationsPage = readFileSync(new URL('../src/pages/donations/DonationsPage.tsx', import.meta.url), 'utf8');
 const receiptsPage = readFileSync(new URL('../src/pages/receipts/ReceiptsPage.tsx', import.meta.url), 'utf8');
 const stationApi = readFileSync(new URL('../api/mark-station-ready.ts', import.meta.url), 'utf8');
 const stationConstants = readFileSync(new URL('../src/lib/constants.ts', import.meta.url), 'utf8');
 const stationPage = readFileSync(new URL('../src/pages/stations/StationPage.tsx', import.meta.url), 'utf8');
 const customerNameMigration = readFileSync(new URL('../supabase/migrations/013_add_customer_name_to_orders.sql', import.meta.url), 'utf8');
+const preorderMigration = readFileSync(new URL('../supabase/migrations/015_add_preorder_workflow.sql', import.meta.url), 'utf8');
+const takeappNormalizer = readFileSync(new URL('../scripts/preorders/takeappNormalizer.mjs', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
 
 assert.match(
@@ -108,6 +113,66 @@ assert.match(
   'api/live-orders.ts should return customer_name for kitchen and station handoff'
 );
 
+assert.match(
+  apiLiveOrders,
+  /release_at\.lte|order_source\.eq\.preorder/,
+  'api/live-orders.ts should hide unreleased preorders'
+);
+
+assert.match(
+  apiLiveOrders,
+  /order_source[\s\S]*external_order_number[\s\S]*scheduled_for/,
+  'api/live-orders.ts should return preorder metadata'
+);
+
+assert.match(
+  apiPreorders,
+  /\.eq\('order_source', 'preorder'\)/,
+  'api/preorders.ts should return preorder orders only'
+);
+
+assert.match(
+  apiCollectPreorder,
+  /collect_preorder/,
+  'api/collect-preorder.ts should use the preorder collection RPC'
+);
+
+assert.match(
+  preorderMigration,
+  /oi\.prep_required = true/,
+  'mark_station_ready should update prep-required items only'
+);
+
+assert.match(
+  preorderMigration,
+  /create or replace function collect_preorder/,
+  'migration should define atomic preorder collection'
+);
+
+assert.match(
+  takeappNormalizer,
+  /Question 1|parseOrderType/,
+  'TakeApp importer should parse column AP dine-in/takeaway into order_type'
+);
+
+assert.match(
+  takeappNormalizer,
+  /Bestie Set|Make It A Set|allocateSetPrice/,
+  'TakeApp importer should split set rows and preserve price allocation'
+);
+
+assert.match(
+  takeappNormalizer,
+  /PREPACKED_CATEGORY[\s\S]*Merch[\s\S]*prep_required:\s*!isPrepacked\(product\)/,
+  'TakeApp importer should mark merch and postcards as non-prep-required'
+);
+
+assert.match(
+  preorderPage,
+  /Mark Collected|collectPreorder|Ready to Collect/,
+  'PreordersPage should support collection from the IC page'
+);
+
 assert.doesNotMatch(
   liveOrdersPage,
   /order\.items\.every\(item => item\.ready_at !== null\)/,
@@ -197,6 +262,12 @@ assert.match(
 );
 
 assert.match(
+  app,
+  /PreordersPage|\/preorders/,
+  'App should expose the preorder IC page'
+);
+
+assert.match(
   donationsPage,
   /Record Donation|createDonation|paymentMethod|staffName/,
   'DonationsPage should record custom-amount donations with payment method and staff attribution'
@@ -238,7 +309,7 @@ assert.doesNotMatch(
   'ReceiptsPage should not remain a stub'
 );
 
-for (const apiPath of ['/api/orders', '/api/orders-history', '/api/donations', '/api/donations-history', '/api/live-orders', '/api/complete-order', '/api/mark-station-ready']) {
+for (const apiPath of ['/api/orders', '/api/orders-history', '/api/donations', '/api/donations-history', '/api/live-orders', '/api/preorders', '/api/complete-order', '/api/collect-preorder', '/api/mark-station-ready']) {
   assert.match(
     viteConfig,
     new RegExp(apiPath.replace(/\//g, '\\/')),
