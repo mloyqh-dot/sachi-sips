@@ -95,6 +95,8 @@ revoke all on function mark_station_ready(uuid, text[]) from anon;
 revoke all on function mark_station_ready(uuid, text[]) from authenticated;
 grant execute on function mark_station_ready(uuid, text[]) to service_role;
 
+drop function if exists complete_order(uuid);
+
 create or replace function complete_order(
   p_order_id uuid
 )
@@ -167,6 +169,8 @@ begin
     updated_order.preorder_collected_at;
 end;
 $$;
+
+drop function if exists collect_preorder(uuid);
 
 create or replace function collect_preorder(
   p_order_id uuid

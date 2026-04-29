@@ -150,6 +150,18 @@ assert.match(
 );
 
 assert.match(
+  preorderMigration,
+  /drop function if exists complete_order\(uuid\);[\s\S]*create or replace function complete_order/,
+  'preorder migration should drop complete_order before changing its return table'
+);
+
+assert.match(
+  preorderMigration,
+  /drop function if exists collect_preorder\(uuid\);[\s\S]*create or replace function collect_preorder/,
+  'preorder migration should drop collect_preorder before creating it'
+);
+
+assert.match(
   takeappNormalizer,
   /Question 1|parseOrderType/,
   'TakeApp importer should parse column AP dine-in/takeaway into order_type'
