@@ -7,6 +7,7 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import DonationsPage from './pages/donations/DonationsPage';
 import MerchPage from './pages/merch/MerchPage';
 import LiveOrdersPage from './pages/live-orders/LiveOrdersPage';
+import PreordersPage from './pages/preorders/PreordersPage';
 import HojichaStationPage from './pages/stations/HojichaStationPage';
 import CoffeeStationPage from './pages/stations/CoffeeStationPage';
 import KitchenStationPage from './pages/stations/KitchenStationPage';
@@ -70,6 +71,7 @@ function AppShell() {
         <div style={{ display: 'flex', gap: '0.125rem', alignItems: 'center' }}>
           <NavLink to="/" end style={navLinkStyle}>POS</NavLink>
           <NavLink to="/live-orders" style={navLinkStyle}>Live Orders</NavLink>
+          <NavLink to="/preorders" style={navLinkStyle}>Preorders</NavLink>
           <div ref={dropdownRef} style={{ position: 'relative' }}>
             <button
               type="button"
@@ -118,6 +120,7 @@ function AppShell() {
         <Routes>
           <Route path="/" element={<POSPage />} />
           <Route path="/live-orders" element={<LiveOrdersPage />} />
+          <Route path="/preorders" element={<PreordersPage />} />
           <Route path="/stations/hojicha" element={<HojichaStationPage />} />
           <Route path="/stations/coffee" element={<CoffeeStationPage />} />
           <Route path="/stations/kitchen" element={<KitchenStationPage />} />
