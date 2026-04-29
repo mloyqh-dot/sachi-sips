@@ -132,11 +132,19 @@ assert.match(
   'Customer-name migration should refresh the PostgREST schema cache after changing the RPC signature'
 );
 
-assert.match(
+assert.doesNotMatch(
   stationApi,
   /from\s+['"]\.\.\/src\/lib\/constants['"]/,
-  'api/mark-station-ready.ts should import the shared STATION_CATEGORIES from src/lib/constants to avoid drift'
+  'api/mark-station-ready.ts should not import frontend source modules that are absent from the Vercel function bundle'
 );
+
+for (const stationCategory of ['Matcha', 'Filter Coffee', 'Bites', 'Bakes', 'Mocktail']) {
+  assert.match(
+    stationApi,
+    new RegExp(stationCategory),
+    `api/mark-station-ready.ts should map station readiness category "${stationCategory}" locally`
+  );
+}
 
 for (const category of ['Filter Coffee', 'Mocktail', 'Bites', 'Bakes', 'Matcha']) {
   assert.match(

@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { STATION_CATEGORIES } from '../src/lib/constants';
 
 type Station = 'hojicha' | 'coffee' | 'kitchen';
 
@@ -21,6 +20,11 @@ type VercelResponse = {
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const STATION_CATEGORIES: Record<Station, string[]> = {
+  hojicha: ['Matcha'],
+  coffee: ['Filter Coffee'],
+  kitchen: ['Bites', 'Bakes', 'Mocktail'],
+};
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
