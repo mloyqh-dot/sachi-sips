@@ -51,6 +51,7 @@ export type CartEntry = CartItem | BestieSetCartItem;
 export type PaymentMethod = 'cash' | 'card' | 'other';
 export type OrderStatus = 'live' | 'completed';
 export type OrderType = 'dine_in' | 'takeaway';
+export type OrderSource = 'pos' | 'preorder';
 
 export interface OrderItem {
   id: string;
@@ -63,6 +64,10 @@ export interface OrderItem {
   line_total: number;
   created_at: string;
   ready_at: string | null;
+  prep_required: boolean;
+  external_lineitem_name?: string | null;
+  external_lineitem_options?: string | null;
+  external_lineitem_raw?: Record<string, unknown> | null;
 }
 
 export interface Order {
@@ -78,6 +83,16 @@ export interface Order {
   notes?: string | null;
   staff_name: string;
   customer_name?: string | null;
+  order_source: OrderSource;
+  external_order_number?: string | null;
+  external_order_name?: string | null;
+  scheduled_for?: string | null;
+  release_at?: string | null;
+  prep_due_at?: string | null;
+  preorder_payment_status?: string | null;
+  preorder_fulfillment_status?: string | null;
+  preorder_collected_at?: string | null;
+  external_raw?: Record<string, unknown> | null;
   items: OrderItem[];
 }
 
