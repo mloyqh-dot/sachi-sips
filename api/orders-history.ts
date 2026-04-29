@@ -42,6 +42,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       notes,
       staff_name,
       customer_name,
+      order_source,
+      external_order_number,
+      external_order_name,
+      scheduled_for,
+      release_at,
+      prep_due_at,
+      preorder_payment_status,
+      preorder_fulfillment_status,
+      preorder_collected_at,
+      external_raw,
       order_items (
         id,
         order_id,
@@ -52,7 +62,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         options,
         line_total,
         created_at,
-        ready_at
+        ready_at,
+        prep_required,
+        external_lineitem_name,
+        external_lineitem_options,
+        external_lineitem_raw
       )
     `)
     .eq('status', 'completed')

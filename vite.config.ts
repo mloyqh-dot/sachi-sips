@@ -99,7 +99,9 @@ function localApiPlugin(): Plugin {
       server.middlewares.use('/api/donations', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/donations'))))
       server.middlewares.use('/api/donations-history', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/donations-history'))))
       server.middlewares.use('/api/live-orders', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/live-orders'))))
+      server.middlewares.use('/api/preorders', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/preorders'))))
       server.middlewares.use('/api/complete-order', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/complete-order'))))
+      server.middlewares.use('/api/collect-preorder', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/collect-preorder'))))
       server.middlewares.use('/api/mark-station-ready', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/mark-station-ready'))))
     },
   }
