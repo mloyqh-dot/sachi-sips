@@ -122,7 +122,7 @@ export function parseOptions(text = '') {
 
   if (normalized.includes('oat')) options.milk = 'oat';
   if (normalized.includes('dairy')) options.milk = 'dairy';
-  if (normalized.includes('less sugar')) options.sugar = 'less_sweet';
+  if (normalized.includes('less sugar') || normalized.includes('less sweet')) options.sugar = 'less_sweet';
   if (normalized.includes('no sugar')) options.sugar = 'no_sugar';
   if (normalized.includes('normal sugar')) options.sugar = 'normal';
   if (normalized.includes('more sugar')) options.sugar = 'more_sweet';

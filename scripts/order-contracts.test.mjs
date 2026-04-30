@@ -169,6 +169,12 @@ assert.match(
 
 assert.match(
   takeappNormalizer,
+  /less sugar[\s\S]*less sweet[\s\S]*less_sweet/,
+  'TakeApp importer should parse Less Sweet sugar customization labels'
+);
+
+assert.match(
+  takeappNormalizer,
   /Bestie Set|Make It A Set|allocateSetPrice/,
   'TakeApp importer should split set rows and preserve price allocation'
 );
