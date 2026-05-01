@@ -80,6 +80,12 @@ assert.match(
   'POS checkout should submit computed subtotal and editable final total separately'
 );
 
+assert.match(
+  posPage,
+  /useState<PaymentMethod>\('card'\)[\s\S]*setPaymentMethod\('card'\)/,
+  'POS payment method should default and reset to card'
+);
+
 assert.doesNotMatch(
   posPage,
   /supabase\.rpc\('create_order'/,

@@ -770,7 +770,7 @@ const POSPage: React.FC = () => {
   const [editingPriceKey, setEditingPriceKey] = useState<string | null>(null);
   const [editingPriceValue, setEditingPriceValue] = useState('');
   const [finalTotalOverride, setFinalTotalOverride] = useState<number | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [orderType, setOrderType] = useState<OrderType>('dine_in');
   const [staffName, setStaffName] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -1187,7 +1187,7 @@ const POSPage: React.FC = () => {
       setCart([]);
       setCustomerName('');
       setNotes('');
-      setPaymentMethod('cash');
+      setPaymentMethod('card');
       setOrderType('dine_in');
       setFinalTotalOverride(null);
       setLastSubmittedOrder(order as Pick<Order, 'ticket_number' | 'created_at' | 'total'>);
