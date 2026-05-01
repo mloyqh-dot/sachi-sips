@@ -46,9 +46,16 @@ async function collectPreorder(order: Order) {
   if (order.external_order_number) params.set('externalOrderNumber', order.external_order_number);
   if (order.external_order_name) params.set('externalOrderName', order.external_order_name);
 
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+
+  if (orderId) headers.set('X-Sachi-Order-Id', orderId);
+  if (order.ticket_number) headers.set('X-Sachi-Ticket-Number', order.ticket_number);
+  if (order.external_order_number) headers.set('X-Sachi-External-Order-Number', order.external_order_number);
+  if (order.external_order_name) headers.set('X-Sachi-External-Order-Name', order.external_order_name);
+
   const response = await fetch(`/api/collect-preorder?${params.toString()}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       orderId,
       ticketNumber: order.ticket_number,

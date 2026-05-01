@@ -16,6 +16,7 @@ type CollectPreorderRequest = {
 type VercelRequest = {
   method?: string;
   body?: CollectPreorderRequest | string | Uint8Array;
+  headers?: Record<string, string | string[] | undefined>;
   query?: Record<string, string | string[] | undefined>;
   url?: string;
 };
@@ -64,6 +65,14 @@ function firstQueryValue(value: string | string[] | null | undefined) {
   return value ?? undefined;
 }
 
+function firstHeaderValue(
+  headers: VercelRequest['headers'],
+  headerName: string
+) {
+  const entry = Object.entries(headers ?? {}).find(([key]) => key.toLowerCase() === headerName);
+  return firstQueryValue(entry?.[1]);
+}
+
 function parseCollectPreorderQuery(req: VercelRequest): CollectPreorderRequest {
   const params = new URLSearchParams(req.url?.split('?')[1] ?? '');
 
@@ -77,6 +86,15 @@ function parseCollectPreorderQuery(req: VercelRequest): CollectPreorderRequest {
     external_order_number: firstQueryValue(req.query?.external_order_number) ?? params.get('external_order_number') ?? undefined,
     externalOrderName: firstQueryValue(req.query?.externalOrderName) ?? params.get('externalOrderName') ?? undefined,
     external_order_name: firstQueryValue(req.query?.external_order_name) ?? params.get('external_order_name') ?? undefined,
+  };
+}
+
+function parseCollectPreorderHeaders(req: VercelRequest): CollectPreorderRequest {
+  return {
+    orderId: firstHeaderValue(req.headers, 'x-sachi-order-id'),
+    ticketNumber: firstHeaderValue(req.headers, 'x-sachi-ticket-number'),
+    externalOrderNumber: firstHeaderValue(req.headers, 'x-sachi-external-order-number'),
+    externalOrderName: firstHeaderValue(req.headers, 'x-sachi-external-order-name'),
   };
 }
 
@@ -147,8 +165,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const body = {
-    ...parseCollectPreorderQuery(req),
     ...parseCollectPreorderBody(req.body),
+    ...parseCollectPreorderQuery(req),
+    ...parseCollectPreorderHeaders(req),
   };
   const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
   let orderId: string | null;
