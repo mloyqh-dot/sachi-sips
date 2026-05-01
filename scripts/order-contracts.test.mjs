@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
+import { parseOrderType } from './preorders/takeappNormalizer.mjs';
 
 const apiOrders = readFileSync(new URL('../api/orders.ts', import.meta.url), 'utf8');
 const apiOrdersHistory = readFileSync(new URL('../api/orders-history.ts', import.meta.url), 'utf8');
@@ -165,6 +166,18 @@ assert.match(
   takeappNormalizer,
   /Question 1|parseOrderType/,
   'TakeApp importer should parse column AP dine-in/takeaway into order_type'
+);
+
+assert.equal(
+  parseOrderType('Dine-in/Takeaway: Dine-in'),
+  'dine_in',
+  'TakeApp importer should parse AP column Dine-in selections as dine_in'
+);
+
+assert.equal(
+  parseOrderType('Dine-in/Takeaway: Takeaway'),
+  'takeaway',
+  'TakeApp importer should parse AP column Takeaway selections as takeaway'
 );
 
 assert.match(

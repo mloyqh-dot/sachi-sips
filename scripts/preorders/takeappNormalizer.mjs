@@ -92,9 +92,9 @@ export function groupRowsByOrderNumber(rows) {
 }
 
 export function parseOrderType(value) {
-  const normalized = value.toLowerCase();
-  if (normalized.includes('takeaway')) return 'takeaway';
-  if (normalized.includes('dine-in') || normalized.includes('dine in')) return 'dine_in';
+  const normalized = value.toLowerCase().split(':').pop()?.trim() ?? '';
+  if (normalized === 'takeaway') return 'takeaway';
+  if (normalized === 'dine-in' || normalized === 'dine in' || normalized === 'dinein') return 'dine_in';
   throw new Error(`Unsupported dine-in/takeaway value: ${value}`);
 }
 
