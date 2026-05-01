@@ -184,6 +184,18 @@ assert.match(
 );
 
 assert.match(
+  apiCollectPreorder,
+  /parseCollectPreorderBody[\s\S]*JSON\.parse[\s\S]*order_id[\s\S]*A valid orderId is required/,
+  'api/collect-preorder.ts should robustly parse preorder collection payloads before validating orderId'
+);
+
+assert.match(
+  preorderPage,
+  /collectPreorder\(order\.id\)/,
+  'PreordersPage should send the database order UUID when marking a preorder collected'
+);
+
+assert.match(
   preorderMigration,
   /oi\.prep_required = true/,
   'mark_station_ready should update prep-required items only'

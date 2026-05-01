@@ -2,11 +2,13 @@ import { createClient } from '@supabase/supabase-js';
 
 type CollectPreorderRequest = {
   orderId?: string;
+  order_id?: string;
+  id?: string;
 };
 
 type VercelRequest = {
   method?: string;
-  body?: CollectPreorderRequest;
+  body?: CollectPreorderRequest | string;
 };
 
 type VercelResponse = {
@@ -22,6 +24,20 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(value);
 }
 
+function parseCollectPreorderBody(body: VercelRequest['body']): CollectPreorderRequest {
+  if (!body) return {};
+
+  if (typeof body === 'string') {
+    try {
+      return JSON.parse(body) as CollectPreorderRequest;
+    } catch {
+      return {};
+    }
+  }
+
+  return body;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Allow', ['POST']);
 
@@ -35,7 +51,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const orderId = req.body?.orderId?.trim() ?? '';
+  const body = parseCollectPreorderBody(req.body);
+  const orderId = (body.orderId ?? body.order_id ?? body.id ?? '').trim();
 
   if (!isUuid(orderId)) {
     res.status(400).json({ error: 'A valid orderId is required' });
