@@ -1,9 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type CollectPreorderRequest = {
   orderId?: string;
   order_id?: string;
   id?: string;
+  ticketNumber?: string;
+  ticket_number?: string;
+  externalOrderNumber?: string;
+  external_order_number?: string;
+  externalOrderName?: string;
+  external_order_name?: string;
 };
 
 type VercelRequest = {
@@ -24,6 +31,10 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(value);
 }
 
+function normalizeLookupValue(value?: string) {
+  return (value ?? '').trim();
+}
+
 function parseCollectPreorderBody(body: VercelRequest['body']): CollectPreorderRequest {
   if (!body) return {};
 
@@ -36,6 +47,56 @@ function parseCollectPreorderBody(body: VercelRequest['body']): CollectPreorderR
   }
 
   return body;
+}
+
+async function findLivePreorderId(
+  supabase: SupabaseClient,
+  column: string,
+  value: string
+): Promise<string | null> {
+  if (!value) return null;
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('status', 'live')
+    .eq('order_source', 'preorder')
+    .eq(column, value)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return typeof data?.id === 'string' && isUuid(data.id) ? data.id : null;
+}
+
+async function resolveCollectPreorderId(
+  supabase: SupabaseClient,
+  body: CollectPreorderRequest
+): Promise<string | null> {
+  const suppliedOrderId = normalizeLookupValue(body.orderId ?? body.order_id ?? body.id);
+
+  if (isUuid(suppliedOrderId)) return suppliedOrderId;
+
+  const ticketNumber = normalizeLookupValue(body.ticketNumber ?? body.ticket_number);
+  const externalOrderNumber = normalizeLookupValue(
+    body.externalOrderNumber ?? body.external_order_number
+  ).replace(/^#/, '');
+  const externalOrderName = normalizeLookupValue(body.externalOrderName ?? body.external_order_name);
+
+  const lookupAttempts: Array<[string, string]> = [
+    ['ticket_number', ticketNumber],
+    ['external_order_number', externalOrderNumber],
+    ['external_order_name', externalOrderName],
+    ['external_order_name', externalOrderNumber ? `#${externalOrderNumber}` : ''],
+  ];
+
+  for (const [column, value] of lookupAttempts) {
+    const orderId = await findLivePreorderId(supabase, column, value);
+    if (orderId) return orderId;
+  }
+
+  return null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -52,14 +113,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const body = parseCollectPreorderBody(req.body);
-  const orderId = (body.orderId ?? body.order_id ?? body.id ?? '').trim();
+  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+  let orderId: string | null;
 
-  if (!isUuid(orderId)) {
+  try {
+    orderId = await resolveCollectPreorderId(supabase, body);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unable to resolve preorder' });
+    return;
+  }
+
+  if (!orderId) {
     res.status(400).json({ error: 'A valid orderId is required' });
     return;
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
   const { data, error } = await supabase.rpc('collect_preorder', {
     p_order_id: orderId,
   });

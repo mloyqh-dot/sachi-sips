@@ -12,6 +12,20 @@ function normalizeOrder(order: OrderRecord): Order {
   };
 }
 
+function isUuid(value: string | null | undefined) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(value ?? '');
+}
+
+function getCollectableOrderId(order: Order) {
+  if (isUuid(order.id)) return order.id;
+
+  return order.items.find(item => isUuid(item.order_id))?.order_id ?? '';
+}
+
+function getOrderStateKey(order: Order) {
+  return getCollectableOrderId(order) || order.id || order.ticket_number;
+}
+
 async function fetchPreorders() {
   const response = await fetch('/api/preorders');
   const result = await response.json().catch(() => null) as { error?: string; orders?: OrderRecord[] } | null;
@@ -23,11 +37,17 @@ async function fetchPreorders() {
   return (result?.orders ?? []).map(normalizeOrder);
 }
 
-async function collectPreorder(orderId: string) {
+async function collectPreorder(order: Order) {
+  const orderId = getCollectableOrderId(order);
   const response = await fetch('/api/collect-preorder', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ orderId }),
+    body: JSON.stringify({
+      orderId,
+      ticketNumber: order.ticket_number,
+      externalOrderNumber: order.external_order_number,
+      externalOrderName: order.external_order_name,
+    }),
   });
   const result = await response.json().catch(() => null) as { error?: string } | null;
 
@@ -508,29 +528,31 @@ const PreordersPage: React.FC = () => {
   }, []);
 
   async function handleCollect(order: Order) {
-    if (collectingOrderIds[order.id] || !isReadyToCollect(order)) return;
+    const orderKey = getOrderStateKey(order);
+
+    if (collectingOrderIds[orderKey] || !isReadyToCollect(order)) return;
 
     setOrderErrors(current => {
-      if (!current[order.id]) return current;
+      if (!current[orderKey]) return current;
 
       const next = { ...current };
-      delete next[order.id];
+      delete next[orderKey];
       return next;
     });
-    setCollectingOrderIds(current => ({ ...current, [order.id]: true }));
+    setCollectingOrderIds(current => ({ ...current, [orderKey]: true }));
 
     try {
-      await collectPreorder(order.id);
-      setOrders(current => current.filter(entry => entry.id !== order.id));
+      await collectPreorder(order);
+      setOrders(current => current.filter(entry => getOrderStateKey(entry) !== orderKey));
     } catch (err) {
       setOrderErrors(current => ({
         ...current,
-        [order.id]: err instanceof Error ? err.message : 'Unknown error',
+        [orderKey]: err instanceof Error ? err.message : 'Unknown error',
       }));
     } finally {
       setCollectingOrderIds(current => {
         const next = { ...current };
-        delete next[order.id];
+        delete next[orderKey];
         return next;
       });
     }
@@ -597,15 +619,19 @@ const PreordersPage: React.FC = () => {
                 <div style={s.alert('info')}>No preorder windows need attention yet.</div>
               ) : (
                 <div style={s.grid}>
-                  {nextUpOrders.map(order => (
-                    <PreorderCard
-                      key={order.id}
-                      order={order}
-                      collecting={Boolean(collectingOrderIds[order.id])}
-                      error={orderErrors[order.id]}
-                      onCollect={handleCollect}
-                    />
-                  ))}
+                  {nextUpOrders.map(order => {
+                    const orderKey = getOrderStateKey(order);
+
+                    return (
+                      <PreorderCard
+                        key={orderKey}
+                        order={order}
+                        collecting={Boolean(collectingOrderIds[orderKey])}
+                        error={orderErrors[orderKey]}
+                        onCollect={handleCollect}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -621,15 +647,19 @@ const PreordersPage: React.FC = () => {
                     <span style={s.slotTitle}>
                       {getPickupSlotLabel(slotOrders[0]) ?? 'Unscheduled'} ({slotOrders.length})
                     </span>
-                    {slotOrders.map(order => (
-                      <PreorderCard
-                        key={order.id}
-                        order={order}
-                        collecting={Boolean(collectingOrderIds[order.id])}
-                        error={orderErrors[order.id]}
-                        onCollect={handleCollect}
-                      />
-                    ))}
+                    {slotOrders.map(order => {
+                      const orderKey = getOrderStateKey(order);
+
+                      return (
+                        <PreorderCard
+                          key={orderKey}
+                          order={order}
+                          collecting={Boolean(collectingOrderIds[orderKey])}
+                          error={orderErrors[orderKey]}
+                          onCollect={handleCollect}
+                        />
+                      );
+                    })}
                   </div>
                 ))}
               </div>

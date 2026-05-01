@@ -190,9 +190,15 @@ assert.match(
 );
 
 assert.match(
+  apiCollectPreorder,
+  /resolveCollectPreorderId[\s\S]*ticketNumber[\s\S]*externalOrderNumber[\s\S]*externalOrderName[\s\S]*collect_preorder/,
+  'api/collect-preorder.ts should resolve preorder collection by UUID or preorder identifiers'
+);
+
+assert.match(
   preorderPage,
-  /collectPreorder\(order\.id\)/,
-  'PreordersPage should send the database order UUID when marking a preorder collected'
+  /getCollectableOrderId[\s\S]*order\.items\.find\(item => isUuid\(item\.order_id\)\)\?\.order_id[\s\S]*ticketNumber[\s\S]*externalOrderNumber[\s\S]*externalOrderName/,
+  'PreordersPage should send UUID fallback and preorder identifiers when marking a preorder collected'
 );
 
 assert.match(
