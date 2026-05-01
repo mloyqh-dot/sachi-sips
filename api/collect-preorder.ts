@@ -15,7 +15,9 @@ type CollectPreorderRequest = {
 
 type VercelRequest = {
   method?: string;
-  body?: CollectPreorderRequest | string;
+  body?: CollectPreorderRequest | string | Uint8Array;
+  query?: Record<string, string | string[] | undefined>;
+  url?: string;
 };
 
 type VercelResponse = {
@@ -35,18 +37,47 @@ function normalizeLookupValue(value?: string) {
   return (value ?? '').trim();
 }
 
+function parseCollectPreorderJson(rawBody: string): CollectPreorderRequest {
+  try {
+    return JSON.parse(rawBody) as CollectPreorderRequest;
+  } catch {
+    return {};
+  }
+}
+
 function parseCollectPreorderBody(body: VercelRequest['body']): CollectPreorderRequest {
   if (!body) return {};
 
   if (typeof body === 'string') {
-    try {
-      return JSON.parse(body) as CollectPreorderRequest;
-    } catch {
-      return {};
-    }
+    return parseCollectPreorderJson(body);
+  }
+
+  if (body instanceof Uint8Array) {
+    return parseCollectPreorderJson(Buffer.from(body).toString('utf8'));
   }
 
   return body;
+}
+
+function firstQueryValue(value: string | string[] | null | undefined) {
+  if (Array.isArray(value)) return value[0];
+  return value ?? undefined;
+}
+
+function parseCollectPreorderQuery(req: VercelRequest): CollectPreorderRequest {
+  const params = new URLSearchParams(req.url?.split('?')[1] ?? '');
+
+  return {
+    orderId: firstQueryValue(req.query?.orderId) ?? params.get('orderId') ?? undefined,
+    order_id: firstQueryValue(req.query?.order_id) ?? params.get('order_id') ?? undefined,
+    id: firstQueryValue(req.query?.id) ?? params.get('id') ?? undefined,
+    ticketNumber: firstQueryValue(req.query?.ticketNumber) ?? params.get('ticketNumber') ?? undefined,
+    ticket_number: firstQueryValue(req.query?.ticket_number) ?? params.get('ticket_number') ?? undefined,
+    externalOrderNumber: firstQueryValue(req.query?.externalOrderNumber) ?? params.get('externalOrderNumber') ?? undefined,
+    external_order_number: firstQueryValue(req.query?.external_order_number) ?? params.get('external_order_number') ?? undefined,
+    externalOrderName: firstQueryValue(req.query?.externalOrderName) ?? params.get('externalOrderName') ?? undefined,
+    external_order_name: firstQueryValue(req.query?.external_order_name) ?? params.get('external_order_name') ?? undefined,
+  };
 }
 
 async function findLivePreorderId(
@@ -85,6 +116,9 @@ async function resolveCollectPreorderId(
   const externalOrderName = normalizeLookupValue(body.externalOrderName ?? body.external_order_name);
 
   const lookupAttempts: Array<[string, string]> = [
+    ['ticket_number', suppliedOrderId],
+    ['external_order_number', suppliedOrderId.replace(/^#/, '')],
+    ['external_order_name', suppliedOrderId],
     ['ticket_number', ticketNumber],
     ['external_order_number', externalOrderNumber],
     ['external_order_name', externalOrderName],
@@ -112,7 +146,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const body = parseCollectPreorderBody(req.body);
+  const body = {
+    ...parseCollectPreorderQuery(req),
+    ...parseCollectPreorderBody(req.body),
+  };
   const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
   let orderId: string | null;
 

@@ -39,7 +39,14 @@ async function fetchPreorders() {
 
 async function collectPreorder(order: Order) {
   const orderId = getCollectableOrderId(order);
-  const response = await fetch('/api/collect-preorder', {
+  const params = new URLSearchParams();
+
+  if (orderId) params.set('orderId', orderId);
+  if (order.ticket_number) params.set('ticketNumber', order.ticket_number);
+  if (order.external_order_number) params.set('externalOrderNumber', order.external_order_number);
+  if (order.external_order_name) params.set('externalOrderName', order.external_order_name);
+
+  const response = await fetch(`/api/collect-preorder?${params.toString()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
