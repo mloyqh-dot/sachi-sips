@@ -1,0 +1,8 @@
+.env*
+.git
+.worktrees
+node_modules
+dist
+files
+STAFF_GUIDE.md
+STAFF_GUIDE_MOBILE.html

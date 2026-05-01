@@ -24,6 +24,7 @@ const stationPage = readFileSync(new URL('../src/pages/stations/StationPage.tsx'
 const customerNameMigration = readFileSync(new URL('../supabase/migrations/013_add_customer_name_to_orders.sql', import.meta.url), 'utf8');
 const donationsMigration = readFileSync(new URL('../supabase/migrations/012_create_donations.sql', import.meta.url), 'utf8');
 const preorderMigration = readFileSync(new URL('../supabase/migrations/015_add_preorder_workflow.sql', import.meta.url), 'utf8');
+const snackStockMigration = readFileSync(new URL('../supabase/migrations/018_add_snack_stock_tracking.sql', import.meta.url), 'utf8');
 const takeappNormalizer = readFileSync(new URL('../scripts/preorders/takeappNormalizer.mjs', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
 
@@ -91,6 +92,36 @@ assert.match(
   posPage,
   /Classic Shio Pan[\s\S]*Scallion Cream Cheese Onion Shio Pan[\s\S]*isSoldOutProduct[\s\S]*disabled=\{soldOut\}[\s\S]*SOLD OUT/,
   'POS should keep both Shio Pan variants visible but marked sold out'
+);
+
+assert.match(
+  snackStockMigration,
+  /stock_quantity[\s\S]*Spam Musubi[\s\S]*11[\s\S]*Tater Tots[\s\S]*20[\s\S]*apply_product_stock_adjustments/,
+  'snack stock migration should track remaining stock and seed current Spam Musubi/Tater Tots counts'
+);
+
+assert.match(
+  apiOrders,
+  /stock_quantity[\s\S]*apply_product_stock_adjustments[\s\S]*stockAdjustments/,
+  'api/orders.ts should atomically consume tracked product stock during POS checkout'
+);
+
+assert.match(
+  apiEditOrderItems,
+  /stock_quantity[\s\S]*buildStockAdjustments[\s\S]*apply_product_stock_adjustments/,
+  'api/edit-order-items.ts should apply live-order edit stock deltas'
+);
+
+assert.match(
+  posPage,
+  /stock_quantity[\s\S]*getAvailableStock[\s\S]*remainingStock[\s\S]*SOLD OUT/,
+  'POS should show tracked snack stock and mark zero-stock snacks sold out'
+);
+
+assert.match(
+  liveOrdersPage,
+  /stock_quantity[\s\S]*getAvailableStock[\s\S]*remainingStock[\s\S]*SOLD OUT/,
+  'Live order item edits should respect tracked snack stock in the picker'
 );
 
 assert.doesNotMatch(
@@ -185,7 +216,7 @@ assert.match(
 
 assert.match(
   apiCollectPreorder,
-  /parseCollectPreorderBody[\s\S]*JSON\.parse[\s\S]*order_id[\s\S]*A valid orderId is required/,
+  /parseCollectPreorderJson[\s\S]*JSON\.parse[\s\S]*parseCollectPreorderBody[\s\S]*order_id[\s\S]*A valid orderId is required/,
   'api/collect-preorder.ts should robustly parse preorder collection payloads before validating orderId'
 );
 

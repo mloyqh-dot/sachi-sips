@@ -41,6 +41,7 @@ type ProductRow = {
   price: number;
   category: string;
   is_available: boolean;
+  stock_quantity: number | null;
 };
 
 type ExistingOrderRow = {
@@ -66,6 +67,18 @@ type CanonicalItem = {
   quantity: number;
   options: ProductOptions | null;
   line_total: number;
+};
+
+type StockAdjustment = {
+  product_id: string;
+  delta: number;
+};
+
+type StockRpcClient = {
+  rpc: (
+    fn: 'apply_product_stock_adjustments',
+    args: { p_adjustments: StockAdjustment[] }
+  ) => Promise<{ error: { message: string } | null }>;
 };
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -124,6 +137,56 @@ function isSoldOutProduct(product: ProductRow) {
 
 function isPrepRequired(product: ProductRow) {
   return product.category !== 'Merch';
+}
+
+function buildStockAdjustments(
+  existingItems: ExistingOrderItemRow[],
+  canonicalItems: CanonicalItem[],
+  productMap: Map<string, ProductRow>
+) {
+  const existingQuantities = new Map<string, number>();
+  const nextQuantities = new Map<string, number>();
+  const productIds = new Set<string>();
+
+  for (const item of existingItems) {
+    productIds.add(item.product_id);
+    existingQuantities.set(item.product_id, (existingQuantities.get(item.product_id) ?? 0) + item.quantity);
+  }
+
+  for (const item of canonicalItems) {
+    productIds.add(item.product.id);
+    nextQuantities.set(item.product.id, (nextQuantities.get(item.product.id) ?? 0) + item.quantity);
+  }
+
+  const stockAdjustments: StockAdjustment[] = [];
+
+  for (const productId of productIds) {
+    const product = productMap.get(productId);
+    if (product?.stock_quantity === null || product?.stock_quantity === undefined) continue;
+
+    const delta = (existingQuantities.get(productId) ?? 0) - (nextQuantities.get(productId) ?? 0);
+    if (delta !== 0) stockAdjustments.push({ product_id: productId, delta });
+  }
+
+  return stockAdjustments;
+}
+
+async function applyStockAdjustments(
+  supabase: unknown,
+  stockAdjustments: StockAdjustment[]
+) {
+  if (stockAdjustments.length === 0) return null;
+
+  return (supabase as StockRpcClient).rpc('apply_product_stock_adjustments', {
+    p_adjustments: stockAdjustments,
+  });
+}
+
+function reverseStockAdjustments(stockAdjustments: StockAdjustment[]) {
+  return stockAdjustments.map(adjustment => ({
+    product_id: adjustment.product_id,
+    delta: -adjustment.delta,
+  }));
 }
 
 function buildEditNote(staffName: string | undefined) {
@@ -192,11 +255,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const productIds = Array.from(new Set(items.map(item => item.product_id))) as string[];
+  const productIds = Array.from(new Set([
+    ...items.map(item => item.product_id),
+    ...(existingItems ?? []).map(item => item.product_id),
+  ])) as string[];
 
   const { data: products, error: productsError } = await supabase
     .from('products')
-    .select('id, name, price, category, is_available')
+    .select('id, name, price, category, is_available, stock_quantity')
     .in('id', productIds);
 
   if (productsError) {
@@ -267,6 +333,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const idsToKeep = new Set(canonicalItems.map(item => item.id).filter(Boolean));
   const idsToDelete = [...existingItemMap.keys()].filter(id => !idsToKeep.has(id));
+  const stockAdjustments = buildStockAdjustments((existingItems ?? []) as ExistingOrderItemRow[], canonicalItems, productMap);
+  const stockResult = await applyStockAdjustments(supabase, stockAdjustments);
+
+  if (stockResult?.error) {
+    res.status(400).json({ error: stockResult.error.message });
+    return;
+  }
 
   if (idsToDelete.length > 0) {
     const { error: deleteError } = await supabase
@@ -276,6 +349,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .in('id', idsToDelete);
 
     if (deleteError) {
+      await applyStockAdjustments(supabase, reverseStockAdjustments(stockAdjustments));
       res.status(500).json({ error: deleteError.message });
       return;
     }
@@ -317,6 +391,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('id', item.id);
 
     if (updateError) {
+      await applyStockAdjustments(supabase, reverseStockAdjustments(stockAdjustments));
       res.status(500).json({ error: updateError.message });
       return;
     }
@@ -340,6 +415,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })));
 
     if (insertError) {
+      await applyStockAdjustments(supabase, reverseStockAdjustments(stockAdjustments));
       res.status(500).json({ error: insertError.message });
       return;
     }

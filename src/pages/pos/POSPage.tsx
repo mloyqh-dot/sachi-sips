@@ -44,6 +44,28 @@ function isSoldOutProduct(product: Product) {
   return SOLD_OUT_PRODUCT_NAMES.has(product.name);
 }
 
+function getCartProductQuantity(entries: CartEntry[], productId: string) {
+  return explodeCartEntries(entries).reduce((sum, item) => (
+    item.product_id === productId ? sum + item.quantity : sum
+  ), 0);
+}
+
+function getAvailableStock(product: Product, entries: CartEntry[]) {
+  if (product.stock_quantity === null) return Number.POSITIVE_INFINITY;
+  return product.stock_quantity - getCartProductQuantity(entries, product.id);
+}
+
+function formatRemainingStock(remainingStock: number) {
+  return Number.isFinite(remainingStock) ? `${Math.max(0, remainingStock)} left` : null;
+}
+
+function getProductQuantityMap(items: CartItem[]) {
+  return items.reduce<Map<string, number>>((acc, item) => {
+    acc.set(item.product_id, (acc.get(item.product_id) ?? 0) + item.quantity);
+    return acc;
+  }, new Map());
+}
+
 function isPostcard(product: Product) {
   return product.name === "Sachi's Postcard";
 }
@@ -884,7 +906,7 @@ const POSPage: React.FC = () => {
   }, []);
 
   const addToCart = useCallback((product: Product) => {
-    if (isSoldOutProduct(product)) return;
+    if (isSoldOutProduct(product) || getAvailableStock(product, cart) <= 0) return;
 
     if (isCustomizable(product, orderType)) {
       setCustomizingProduct(product);
@@ -899,7 +921,7 @@ const POSPage: React.FC = () => {
       name: product.name,
       price: product.price,
     });
-  }, [commitCartItem, orderType]);
+  }, [cart, commitCartItem, orderType]);
 
   const confirmCustomization = useCallback(() => {
     if (!customizingProduct) return;
@@ -955,12 +977,19 @@ const POSPage: React.FC = () => {
 
   const updateQty = useCallback((itemKey: string, delta: number) => {
     setLastSubmittedOrder(null);
-    setCart(prev =>
-      prev
+    setCart(prev => {
+      const target = prev.find(i => !isBestieSetCartItem(i) && getCartItemKey(i) === itemKey);
+
+      if (target && !isBestieSetCartItem(target) && delta > 0) {
+        const product = products.find(entry => entry.id === target?.product_id);
+        if (product && getAvailableStock(product, prev) <= 0) return prev;
+      }
+
+      return prev
         .map(i => !isBestieSetCartItem(i) && getCartItemKey(i) === itemKey ? { ...i, quantity: i.quantity + delta } : i)
         .filter(i => isBestieSetCartItem(i) || i.quantity > 0)
-    );
-  }, []);
+    });
+  }, [products]);
 
   const handleMakeSet = useCallback((product: Product) => {
     setLastSubmittedOrder(null);
@@ -1007,13 +1036,15 @@ const POSPage: React.FC = () => {
   }, [commitCartItem]);
 
   const handlePickSetBite = useCallback((product: Product) => {
+    if (getAvailableStock(product, cart) <= 0) return;
+
     if (requiresWarmUpOption(product, orderType)) {
       setSetBiteWarmUpProduct(product);
       setSetBiteWarmUp(null);
       return;
     }
     addMakeItASetBite(product);
-  }, [addMakeItASetBite, orderType]);
+  }, [addMakeItASetBite, cart, orderType]);
 
   const confirmSetBiteWarmUp = useCallback(() => {
     if (!setBiteWarmUpProduct || !setBiteWarmUp) return;
@@ -1081,6 +1112,7 @@ const POSPage: React.FC = () => {
 
   const completeBestieSet = useCallback((product: Product, options?: ProductOptions) => {
     if (!bestieSetDraft.drink1 || !bestieSetDraft.drink2) return;
+    if (getAvailableStock(product, cart) <= 0) return;
 
     const setItem: BestieSetCartItem = {
       type: 'bestie_set',
@@ -1095,7 +1127,7 @@ const POSPage: React.FC = () => {
     setCart(prev => [...prev, setItem]);
     closeBestieSet();
     if (isMobile) setMobileView('cart');
-  }, [bestieSetDraft.drink1, bestieSetDraft.drink2, closeBestieSet, isMobile, productToBestieSubItem]);
+  }, [bestieSetDraft.drink1, bestieSetDraft.drink2, cart, closeBestieSet, isMobile, productToBestieSubItem]);
 
   const handlePickBestieBite = useCallback((product: Product) => {
     if (requiresWarmUpOption(product, orderType)) {
@@ -1209,6 +1241,16 @@ const POSPage: React.FC = () => {
         throw new Error('Unable to create order');
       }
 
+      const productQuantities = getProductQuantityMap(orderItems);
+      setProducts(current => current.map(product => {
+        const quantity = productQuantities.get(product.id);
+        if (!quantity || product.stock_quantity === null) return product;
+
+        return {
+          ...product,
+          stock_quantity: Math.max(0, product.stock_quantity - quantity),
+        };
+      }));
       setCart([]);
       setCustomerName('');
       setNotes('');
@@ -1363,7 +1405,9 @@ const POSPage: React.FC = () => {
                 <div style={s.subcategoryHeading}>{subcategory}</div>
                 <div style={s.productGrid}>
                   {items.map(p => {
-                    const soldOut = isSoldOutProduct(p);
+                    const remainingStock = getAvailableStock(p, cart);
+                    const soldOut = isSoldOutProduct(p) || remainingStock <= 0;
+                    const stockLabel = formatRemainingStock(remainingStock);
 
                     return (
                       <div key={p.id}>
@@ -1387,6 +1431,7 @@ const POSPage: React.FC = () => {
                         >
                           <span style={s.productName}>{p.name}</span>
                           <span style={s.productPrice}>${p.price.toFixed(2)}</span>
+                          {stockLabel && !soldOut && <span style={s.soldOutLabel}>{stockLabel}</span>}
                           {soldOut && <span style={s.soldOutLabel}>SOLD OUT</span>}
                         </button>
                         {(p.category === 'Matcha' || p.category === 'Filter Coffee') && (
@@ -1632,11 +1677,21 @@ const POSPage: React.FC = () => {
               </div>
             ) : (
               <div style={s.optionGroup}>
-                {makeItASetBites.map(product => (
-                  <button key={product.id} style={s.optionBtn(false)} onClick={() => handlePickSetBite(product)}>
-                    {product.name} - $3.50
-                  </button>
-                ))}
+                {makeItASetBites.map(product => {
+                  const remainingStock = getAvailableStock(product, cart);
+                  const soldOut = isSoldOutProduct(product) || remainingStock <= 0;
+
+                  return (
+                    <button
+                      key={product.id}
+                      style={soldOut ? { ...s.optionBtn(false), ...s.optionBtnDisabled } : s.optionBtn(false)}
+                      disabled={soldOut}
+                      onClick={() => handlePickSetBite(product)}
+                    >
+                      {product.name} - $3.50{soldOut ? ' - SOLD OUT' : formatRemainingStock(remainingStock) ? ` - ${formatRemainingStock(remainingStock)}` : ''}
+                    </button>
+                  );
+                })}
               </div>
             )}
             <div style={s.modalFooter}>
@@ -1737,11 +1792,21 @@ const POSPage: React.FC = () => {
 
             {bestieSetStep === 3 && !bestieBiteWarmUpProduct && (
               <div style={s.optionGroup}>
-                {bestieBiteProducts.map(product => (
-                  <button key={product.id} style={s.optionBtn(false)} onClick={() => handlePickBestieBite(product)}>
-                    {product.name} - ${product.price.toFixed(2)}
-                  </button>
-                ))}
+                {bestieBiteProducts.map(product => {
+                  const remainingStock = getAvailableStock(product, cart);
+                  const soldOut = isSoldOutProduct(product) || remainingStock <= 0;
+
+                  return (
+                    <button
+                      key={product.id}
+                      style={soldOut ? { ...s.optionBtn(false), ...s.optionBtnDisabled } : s.optionBtn(false)}
+                      disabled={soldOut}
+                      onClick={() => handlePickBestieBite(product)}
+                    >
+                      {product.name} - ${product.price.toFixed(2)}{soldOut ? ' - SOLD OUT' : formatRemainingStock(remainingStock) ? ` - ${formatRemainingStock(remainingStock)}` : ''}
+                    </button>
+                  );
+                })}
               </div>
             )}
 

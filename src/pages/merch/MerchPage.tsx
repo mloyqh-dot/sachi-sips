@@ -156,7 +156,7 @@ const MerchPage: React.FC = () => {
 
       const { data, error: merchError } = await supabase
         .from('products')
-        .select('id, name, price, category, subcategory, sort_order, is_available')
+        .select('id, name, price, category, subcategory, sort_order, is_available, stock_quantity')
         .eq('category', 'Merch')
         .eq('is_available', true)
         .order('subcategory')

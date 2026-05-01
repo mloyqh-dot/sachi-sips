@@ -8,6 +8,7 @@ export interface Product {
   subcategory: string | null;
   sort_order: number;
   is_available: boolean;
+  stock_quantity: number | null;
 }
 
 export type MilkOption = 'dairy' | 'oat';

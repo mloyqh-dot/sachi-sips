@@ -46,6 +46,44 @@ function isSoldOutProduct(product: Product) {
   return SOLD_OUT_PRODUCT_NAMES.has(product.name);
 }
 
+function getExistingProductQuantity(order: Order | null, productId: string) {
+  return order?.items.reduce((sum, item) => (
+    item.product_id === productId ? sum + item.quantity : sum
+  ), 0) ?? 0;
+}
+
+function getEditedProductQuantity(items: EditableOrderItem[], productId: string) {
+  return items.reduce((sum, item) => (
+    item.product_id === productId ? sum + item.quantity : sum
+  ), 0);
+}
+
+function getAvailableStock(product: Product, editItems: EditableOrderItem[], editingOrder: Order | null) {
+  if (product.stock_quantity === null) return Number.POSITIVE_INFINITY;
+  return product.stock_quantity + getExistingProductQuantity(editingOrder, product.id) - getEditedProductQuantity(editItems, product.id);
+}
+
+function formatRemainingStock(remainingStock: number) {
+  return Number.isFinite(remainingStock) ? `${Math.max(0, remainingStock)} left` : null;
+}
+
+function buildEditedProductStockDeltas(order: Order, items: EditableOrderItem[]) {
+  const productIds = new Set([
+    ...order.items.map(item => item.product_id),
+    ...items.map(item => item.product_id),
+  ]);
+  const deltas = new Map<string, number>();
+
+  for (const productId of productIds) {
+    deltas.set(
+      productId,
+      getExistingProductQuantity(order, productId) - getEditedProductQuantity(items, productId)
+    );
+  }
+
+  return deltas;
+}
+
 function requiresMilkOption(product: Product) {
   return /matcha latte|hojicha latte/i.test(product.name);
 }
@@ -779,7 +817,7 @@ const LiveOrdersPage: React.FC = () => {
     (async () => {
       const { data } = await supabase
         .from('products')
-        .select('id, name, price, category, subcategory, sort_order, is_available');
+        .select('id, name, price, category, subcategory, sort_order, is_available, stock_quantity');
 
       if (!active) return;
 
@@ -822,7 +860,11 @@ const LiveOrdersPage: React.FC = () => {
 
   const productCategoryMap = new Map(products.map(product => [product.id, product.category]));
   const productMap = new Map(products.map(product => [product.id, product]));
-  const selectableProducts = products.filter(product => product.is_available && !isSoldOutProduct(product));
+  const selectableProducts = products.filter(product => (
+    product.is_available &&
+    !isSoldOutProduct(product) &&
+    (product.stock_quantity === null || product.stock_quantity > 0)
+  ));
   const visibleOrders = showPosOnly
     ? orders.filter(order => order.order_source !== 'preorder')
     : orders;
@@ -834,7 +876,11 @@ const LiveOrdersPage: React.FC = () => {
   }, 0);
   const hasInvalidEditItems = editItems.length === 0 || editItems.some(item => {
     const product = productMap.get(item.product_id);
-    return !product || !product.is_available || isSoldOutProduct(product) || item.quantity <= 0;
+    return !product ||
+      !product.is_available ||
+      isSoldOutProduct(product) ||
+      item.quantity <= 0 ||
+      getAvailableStock(product, editItems, editingOrder) < 0;
   });
 
   function openEditOrder(order: Order) {
@@ -940,7 +986,17 @@ const LiveOrdersPage: React.FC = () => {
       }
 
       const updatedOrder = normalizeOrder(result.order);
+      const stockDeltas = buildEditedProductStockDeltas(editingOrder, editItems);
 
+      setProducts(current => current.map(product => {
+        const delta = stockDeltas.get(product.id);
+        if (!delta || product.stock_quantity === null) return product;
+
+        return {
+          ...product,
+          stock_quantity: Math.max(0, product.stock_quantity + delta),
+        };
+      }));
       setOrders(current => current.map(order => order.id === updatedOrder.id ? updatedOrder : order));
       setSuccessMessage(`Order ${updatedOrder.ticket_number} items updated.`);
       setEditingOrder(null);
@@ -1134,7 +1190,12 @@ const LiveOrdersPage: React.FC = () => {
                           onChange={event => updateEditItemProduct(item.rowKey, event.target.value)}
                         >
                           {products.map(productOption => {
-                            const unavailable = !productOption.is_available || isSoldOutProduct(productOption);
+                            const remainingStock = getAvailableStock(productOption, editItems, editingOrder);
+                            const unavailable = !productOption.is_available || isSoldOutProduct(productOption) || (
+                              productOption.id !== item.product_id &&
+                              remainingStock <= 0
+                            );
+                            const stockLabel = formatRemainingStock(remainingStock);
 
                             return (
                               <option
@@ -1142,7 +1203,7 @@ const LiveOrdersPage: React.FC = () => {
                                 value={productOption.id}
                                 disabled={unavailable}
                               >
-                                {productOption.name}{unavailable ? ' - SOLD OUT' : ''}
+                                {productOption.name}{unavailable ? ' - SOLD OUT' : stockLabel ? ` - ${stockLabel}` : ''}
                               </option>
                             );
                           })}

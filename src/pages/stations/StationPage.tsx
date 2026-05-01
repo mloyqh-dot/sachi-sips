@@ -511,7 +511,7 @@ const StationPage: React.FC<StationPageProps> = ({ stationName, station, categor
     (async () => {
       const { data } = await supabase
         .from('products')
-        .select('id, name, price, category, subcategory, sort_order, is_available');
+        .select('id, name, price, category, subcategory, sort_order, is_available, stock_quantity');
 
       if (!active) return;
 

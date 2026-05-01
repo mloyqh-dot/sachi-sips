@@ -46,6 +46,7 @@ type ProductRow = {
   id: string;
   name: string;
   is_available: boolean;
+  stock_quantity: number | null;
 };
 
 type CanonicalOrderItemPayload = {
@@ -58,6 +59,18 @@ type CanonicalOrderItemPayload = {
     sugar?: SugarOption;
     warm_up?: 'warm_up' | 'no_warm_up';
   };
+};
+
+type StockAdjustment = {
+  product_id: string;
+  delta: number;
+};
+
+type StockRpcClient = {
+  rpc: (
+    fn: 'apply_product_stock_adjustments',
+    args: { p_adjustments: StockAdjustment[] }
+  ) => Promise<{ error: { message: string } | null }>;
 };
 
 function isPaymentMethod(value: unknown): value is PaymentMethod {
@@ -103,6 +116,37 @@ function hasValidOptions(item: OrderItemPayload) {
 
 function roundCurrency(value: number) {
   return Number(value.toFixed(2));
+}
+
+function buildStockAdjustments(items: CanonicalOrderItemPayload[], productMap: Map<string, ProductRow>) {
+  const stockAdjustments = new Map<string, number>();
+
+  for (const item of items) {
+    const product = productMap.get(item.product_id);
+    if (product?.stock_quantity === null || product?.stock_quantity === undefined) continue;
+
+    stockAdjustments.set(item.product_id, (stockAdjustments.get(item.product_id) ?? 0) - item.quantity);
+  }
+
+  return Array.from(stockAdjustments, ([product_id, delta]) => ({ product_id, delta }));
+}
+
+async function applyStockAdjustments(
+  supabase: unknown,
+  stockAdjustments: StockAdjustment[]
+) {
+  if (stockAdjustments.length === 0) return null;
+
+  return (supabase as StockRpcClient).rpc('apply_product_stock_adjustments', {
+    p_adjustments: stockAdjustments,
+  });
+}
+
+function reverseStockAdjustments(stockAdjustments: StockAdjustment[]) {
+  return stockAdjustments.map(adjustment => ({
+    product_id: adjustment.product_id,
+    delta: -adjustment.delta,
+  }));
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -154,7 +198,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const productIds = Array.from(new Set(items.map(item => item.product_id)));
   const { data: products, error: productsError } = await supabase
     .from('products')
-    .select('id, name, is_available')
+    .select('id, name, is_available, stock_quantity')
     .in('id', productIds);
 
   if (productsError) {
@@ -190,6 +234,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const computedSubtotal = roundCurrency(
     canonicalItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
   );
+  const stockAdjustments = buildStockAdjustments(canonicalItems, productMap);
   const submittedSubtotal = typeof body.subtotal === 'number' ? roundCurrency(body.subtotal) : computedSubtotal;
   const submittedTotal = typeof body.total === 'number' ? roundCurrency(body.total) : computedSubtotal;
 
@@ -200,6 +245,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!Number.isFinite(submittedTotal) || submittedTotal < 0) {
     res.status(400).json({ error: 'Order total must be a non-negative amount' });
+    return;
+  }
+
+  const stockResult = await applyStockAdjustments(supabase, stockAdjustments);
+
+  if (stockResult?.error) {
+    res.status(400).json({ error: stockResult.error.message });
     return;
   }
 
@@ -218,6 +270,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .single();
 
   if (orderError) {
+    await applyStockAdjustments(supabase, reverseStockAdjustments(stockAdjustments));
     res.status(500).json({ error: orderError.message });
     return;
   }
@@ -235,6 +288,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })));
 
   if (itemsError) {
+    await applyStockAdjustments(supabase, reverseStockAdjustments(stockAdjustments));
     await supabase.from('orders').delete().eq('id', insertedOrder.id);
     res.status(500).json({ error: itemsError.message });
     return;
