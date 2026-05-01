@@ -373,6 +373,8 @@ export function normalizeTakeappRows(rows, products) {
         serviceDate: firstRow['Service date'],
         serviceTime: firstRow['Service time'],
       });
+      const releaseAt = minutesBefore(scheduledFor, 30);
+      const prepDueAt = minutesBefore(scheduledFor, 15);
       const items = group.rows.flatMap(row => normalizeSingleRow(row, productMaps, orderType));
       const subtotal = roundCurrency(items.reduce((sum, item) => sum + item.line_total, 0));
       const csvSubtotal = roundCurrency(parseNumber(firstRow.Subtotal, 'Subtotal'));
@@ -388,9 +390,10 @@ export function normalizeTakeappRows(rows, products) {
         external_order_name: firstRow['Order name']?.trim() || `#${group.orderNumber}`,
         customer_name: customerName,
         order_type: orderType,
+        created_at: releaseAt.toISOString(),
         scheduled_for: scheduledFor.toISOString(),
-        release_at: minutesBefore(scheduledFor, 30).toISOString(),
-        prep_due_at: minutesBefore(scheduledFor, 15).toISOString(),
+        release_at: releaseAt.toISOString(),
+        prep_due_at: prepDueAt.toISOString(),
         preorder_payment_status: firstRow['Payment Status']?.trim() || null,
         preorder_fulfillment_status: firstRow['Fulfillment Status']?.trim() || null,
         subtotal,

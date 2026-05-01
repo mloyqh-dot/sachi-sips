@@ -193,6 +193,12 @@ assert.match(
   'TakeApp importer should parse column AP dine-in/takeaway into order_type'
 );
 
+assert.match(
+  takeappNormalizer,
+  /created_at:\s*releaseAt\.toISOString\(\)/,
+  'TakeApp importer should use release_at as preorder created_at so station queues sort by release time'
+);
+
 assert.equal(
   parseOrderType('Dine-in/Takeaway: Dine-in'),
   'dine_in',
