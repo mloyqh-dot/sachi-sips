@@ -86,6 +86,12 @@ assert.match(
   'POS payment method should default and reset to card'
 );
 
+assert.match(
+  posPage,
+  /Classic Shio Pan[\s\S]*Scallion Cream Cheese Onion Shio Pan[\s\S]*isSoldOutProduct[\s\S]*disabled=\{soldOut\}[\s\S]*SOLD OUT/,
+  'POS should keep both Shio Pan variants visible but marked sold out'
+);
+
 assert.doesNotMatch(
   posPage,
   /supabase\.rpc\('create_order'/,

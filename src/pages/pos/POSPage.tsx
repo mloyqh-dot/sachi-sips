@@ -35,6 +35,14 @@ const WARM_UP_OPTIONS: { value: WarmUpOption; label: string }[] = [
   { value: 'no_warm_up', label: 'No Warm Up' },
 ];
 const FINAL_TOTAL_PRICE_KEY = 'final-total';
+const SOLD_OUT_PRODUCT_NAMES = new Set([
+  'Classic Shio Pan',
+  'Scallion Cream Cheese Onion Shio Pan',
+]);
+
+function isSoldOutProduct(product: Product) {
+  return SOLD_OUT_PRODUCT_NAMES.has(product.name);
+}
 
 function isPostcard(product: Product) {
   return product.name === "Sachi's Postcard";
@@ -276,6 +284,13 @@ const s = {
     boxShadow: '0 1px 6px rgba(82, 48, 26, 0.08)',
     transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
   },
+  productBtnSoldOut: {
+    background: 'rgba(220, 214, 205, 0.72)',
+    borderColor: 'rgba(82, 48, 26, 0.16)',
+    boxShadow: 'none',
+    cursor: 'not-allowed',
+    opacity: 0.62,
+  },
   productName: {
     fontFamily: "'Public Sans', sans-serif",
     fontSize: '14px',
@@ -288,6 +303,14 @@ const s = {
     fontSize: '13px',
     color: 'var(--color-pink)',
     fontWeight: 600,
+  },
+  soldOutLabel: {
+    marginTop: '0.25rem',
+    color: 'var(--color-burgundy)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '11px',
+    fontWeight: 800,
+    letterSpacing: '0.08em',
   },
   bestieSetBtn: {
     width: '100%',
@@ -861,6 +884,8 @@ const POSPage: React.FC = () => {
   }, []);
 
   const addToCart = useCallback((product: Product) => {
+    if (isSoldOutProduct(product)) return;
+
     if (isCustomizable(product, orderType)) {
       setCustomizingProduct(product);
       setSelectedMilk(null);
@@ -1337,30 +1362,39 @@ const POSPage: React.FC = () => {
               <div key={subcategory} style={s.subcategoryBlock}>
                 <div style={s.subcategoryHeading}>{subcategory}</div>
                 <div style={s.productGrid}>
-                  {items.map(p => (
-                    <div key={p.id}>
-                      <button
-                        style={s.productBtn}
-                        onClick={() => addToCart(p)}
-                        onMouseEnter={e => {
-                          (e.currentTarget as HTMLButtonElement).style.borderColor = '#E59090';
-                          (e.currentTarget as HTMLButtonElement).style.background = 'rgba(229, 144, 144, 0.15)';
-                          (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 10px rgba(229, 144, 144, 0.25)';
-                        }}
-                        onMouseLeave={e => {
-                          (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(104, 40, 55, 0.14)';
-                          (e.currentTarget as HTMLButtonElement).style.background = PRODUCT_BTN_BG;
-                          (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 1px 6px rgba(82, 48, 26, 0.08)';
-                        }}
-                      >
-                        <span style={s.productName}>{p.name}</span>
-                        <span style={s.productPrice}>${p.price.toFixed(2)}</span>
-                      </button>
-                      {(p.category === 'Matcha' || p.category === 'Filter Coffee') && (
-                        <button style={s.setBtn} onClick={() => handleMakeSet(p)}>+ Set</button>
-                      )}
-                    </div>
-                  ))}
+                  {items.map(p => {
+                    const soldOut = isSoldOutProduct(p);
+
+                    return (
+                      <div key={p.id}>
+                        <button
+                          style={soldOut ? { ...s.productBtn, ...s.productBtnSoldOut } : s.productBtn}
+                          onClick={() => addToCart(p)}
+                          disabled={soldOut}
+                          aria-label={soldOut ? `${p.name} sold out` : p.name}
+                          onMouseEnter={e => {
+                            if (soldOut) return;
+                            (e.currentTarget as HTMLButtonElement).style.borderColor = '#E59090';
+                            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(229, 144, 144, 0.15)';
+                            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 10px rgba(229, 144, 144, 0.25)';
+                          }}
+                          onMouseLeave={e => {
+                            if (soldOut) return;
+                            (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(104, 40, 55, 0.14)';
+                            (e.currentTarget as HTMLButtonElement).style.background = PRODUCT_BTN_BG;
+                            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 1px 6px rgba(82, 48, 26, 0.08)';
+                          }}
+                        >
+                          <span style={s.productName}>{p.name}</span>
+                          <span style={s.productPrice}>${p.price.toFixed(2)}</span>
+                          {soldOut && <span style={s.soldOutLabel}>SOLD OUT</span>}
+                        </button>
+                        {(p.category === 'Matcha' || p.category === 'Filter Coffee') && (
+                          <button style={s.setBtn} onClick={() => handleMakeSet(p)}>+ Set</button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
