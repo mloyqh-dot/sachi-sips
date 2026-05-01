@@ -103,6 +103,9 @@ function parseCollectPreorderHeaders(req: VercelRequest): CollectPreorderRequest
 }
 
 function describeCollectPreorderRequest(req: VercelRequest, body: CollectPreorderRequest) {
+  const sachiOrderHeader = Object.entries(req.headers ?? {})
+    .find(([key]) => key.toLowerCase() === 'x-sachi-order-id')?.[1];
+
   return {
     bodyKeys: Object.keys(body),
     bodyType: req.body === undefined ? 'undefined' : Object.prototype.toString.call(req.body),
@@ -112,6 +115,8 @@ function describeCollectPreorderRequest(req: VercelRequest, body: CollectPreorde
     hasHeadersGet: Boolean(req.headers && typeof (req.headers as Headers).get === 'function'),
     method: req.method,
     queryKeys: Object.keys(req.query ?? {}),
+    sachiOrderHeaderType: Object.prototype.toString.call(sachiOrderHeader),
+    sachiOrderHeaderValue: Array.isArray(sachiOrderHeader) ? sachiOrderHeader[0] : sachiOrderHeader,
     url: req.url,
   };
 }
