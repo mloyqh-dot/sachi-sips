@@ -36,10 +36,34 @@ assert.doesNotMatch(
   'api/orders.ts should allow an edited final total while still validating item subtotal'
 );
 
+assert.doesNotMatch(
+  customerNameMigration,
+  /p_subtotal is distinct from computed_subtotal or p_total is distinct from computed_subtotal/,
+  'create_order RPC should allow an edited final total while still validating item subtotal'
+);
+
+assert.match(
+  customerNameMigration,
+  /p_subtotal is distinct from computed_subtotal/,
+  'create_order RPC should still validate submitted subtotal against item totals'
+);
+
+assert.match(
+  customerNameMigration,
+  /computed_subtotal,\s*p_total,/,
+  'create_order RPC should store computed subtotal and submitted final total separately'
+);
+
 assert.match(
   apiOrders,
-  /p_total:\s*submittedTotal/,
-  'api/orders.ts should pass the submitted final total to the create_order RPC'
+  /total:\s*submittedTotal/,
+  'api/orders.ts should persist the submitted final total'
+);
+
+assert.doesNotMatch(
+  apiOrders,
+  /rpc\('create_order'/,
+  'api/orders.ts should not depend on the create_order RPC for discounted totals'
 );
 
 assert.match(

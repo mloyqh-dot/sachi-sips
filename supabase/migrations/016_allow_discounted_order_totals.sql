@@ -1,8 +1,3 @@
-alter table orders
-  add column if not exists customer_name text;
-
-drop function if exists create_order(text, text, text, numeric, numeric, jsonb, text);
-
 create or replace function create_order(
   p_staff_name text,
   p_payment_method text,
@@ -52,6 +47,10 @@ begin
 
   if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
     raise exception 'order items are required';
+  end if;
+
+  if p_total is null or p_total < 0 then
+    raise exception 'order total must be a non-negative amount';
   end if;
 
   if exists (

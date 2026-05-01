@@ -203,22 +203,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const { data, error } = await supabase.rpc('create_order', {
-    p_staff_name: staffName,
-    p_customer_name: customerName,
-    p_payment_method: body.paymentMethod,
-    p_notes: notes || null,
-    p_subtotal: computedSubtotal,
-    p_total: submittedTotal,
-    p_items: canonicalItems,
-    p_order_type: orderType,
-  });
+  const { data: insertedOrder, error: orderError } = await supabase
+    .from('orders')
+    .insert({
+      staff_name: staffName,
+      customer_name: customerName,
+      payment_method: body.paymentMethod,
+      notes: notes || null,
+      subtotal: computedSubtotal,
+      total: submittedTotal,
+      order_type: orderType,
+    })
+    .select('id, ticket_number, created_at, status, subtotal, total, payment_method, notes, staff_name, order_type, customer_name')
+    .single();
 
-  if (error) {
-    res.status(500).json({ error: error.message });
+  if (orderError) {
+    res.status(500).json({ error: orderError.message });
     return;
   }
 
-  const order = Array.isArray(data) ? data[0] : data;
-  res.status(201).json({ order });
+  const { error: itemsError } = await supabase
+    .from('order_items')
+    .insert(canonicalItems.map(item => ({
+      order_id: insertedOrder.id,
+      product_id: item.product_id,
+      name: item.name,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      options: item.options,
+      line_total: roundCurrency(item.unit_price * item.quantity),
+    })));
+
+  if (itemsError) {
+    await supabase.from('orders').delete().eq('id', insertedOrder.id);
+    res.status(500).json({ error: itemsError.message });
+    return;
+  }
+
+  res.status(201).json({ order: insertedOrder });
 }
