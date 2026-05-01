@@ -41,10 +41,13 @@ const SOLD_OUT_PRODUCT_NAMES = new Set([
   'Iced Matcha Latte',
   'Iced Strawberry Matcha Latte',
   'Iced Lychee Matcha Latte',
+  'Momotarō - Hot',
+  'Momotarō - Iced',
   'Spam Musubi',
   'Tater Tots',
   'Iced Banana Hojicha Latte',
   'Mocktail Flight (Set of 3 mini drinks)',
+  'Sticker Sheet',
 ]);
 
 function isSoldOutProduct(product: Product) {

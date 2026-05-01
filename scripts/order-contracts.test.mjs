@@ -30,6 +30,7 @@ const mocktailSoldOutMigration = readFileSync(new URL('../supabase/migrations/02
 const hojichaStockMigration = readFileSync(new URL('../supabase/migrations/021_set_hojicha_stock.sql', import.meta.url), 'utf8');
 const taterTotsSoldOutMigration = readFileSync(new URL('../supabase/migrations/022_mark_tater_tots_sold_out.sql', import.meta.url), 'utf8');
 const matchaSoldOutMigration = readFileSync(new URL('../supabase/migrations/023_mark_matcha_lattes_sold_out.sql', import.meta.url), 'utf8');
+const momotaroStickerSoldOutMigration = readFileSync(new URL('../supabase/migrations/024_mark_momotaro_and_sticker_sheet_sold_out.sql', import.meta.url), 'utf8');
 const takeappNormalizer = readFileSync(new URL('../scripts/preorders/takeappNormalizer.mjs', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
 
@@ -136,8 +137,14 @@ assert.match(
 );
 
 assert.match(
+  momotaroStickerSoldOutMigration,
+  /stock_quantity\s*=\s*0[\s\S]*Momotarō - Hot[\s\S]*Momotarō - Iced[\s\S]*Sticker Sheet/,
+  'Momotaro coffee and sticker sheet sold-out migration should zero their stock'
+);
+
+assert.match(
   apiOrders,
-  /SOLD_OUT_PRODUCT_NAMES[\s\S]*Iced Matcha Latte[\s\S]*Iced Strawberry Matcha Latte[\s\S]*Iced Lychee Matcha Latte[\s\S]*Spam Musubi[\s\S]*Tater Tots[\s\S]*Iced Banana Hojicha Latte[\s\S]*Mocktail Flight \(Set of 3 mini drinks\)[\s\S]*stock_quantity[\s\S]*apply_product_stock_adjustments[\s\S]*stockAdjustments/,
+  /SOLD_OUT_PRODUCT_NAMES[\s\S]*Iced Matcha Latte[\s\S]*Iced Strawberry Matcha Latte[\s\S]*Iced Lychee Matcha Latte[\s\S]*Momotarō - Hot[\s\S]*Momotarō - Iced[\s\S]*Spam Musubi[\s\S]*Tater Tots[\s\S]*Iced Banana Hojicha Latte[\s\S]*Mocktail Flight \(Set of 3 mini drinks\)[\s\S]*Sticker Sheet[\s\S]*stock_quantity[\s\S]*apply_product_stock_adjustments[\s\S]*stockAdjustments/,
   'api/orders.ts should reject hard sold-out items and atomically consume tracked product stock during POS checkout'
 );
 
