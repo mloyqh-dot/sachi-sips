@@ -39,6 +39,7 @@ const SOLD_OUT_PRODUCT_NAMES = new Set([
   'Classic Shio Pan',
   'Scallion Cream Cheese Onion Shio Pan',
   'Spam Musubi',
+  'Tater Tots',
   'Iced Banana Hojicha Latte',
   'Mocktail Flight (Set of 3 mini drinks)',
 ]);

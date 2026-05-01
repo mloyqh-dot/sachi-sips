@@ -28,6 +28,7 @@ const snackStockMigration = readFileSync(new URL('../supabase/migrations/018_add
 const snackSoldOutMigration = readFileSync(new URL('../supabase/migrations/019_mark_spam_musubi_banana_hojicha_sold_out.sql', import.meta.url), 'utf8');
 const mocktailSoldOutMigration = readFileSync(new URL('../supabase/migrations/020_mark_mocktails_sold_out.sql', import.meta.url), 'utf8');
 const hojichaStockMigration = readFileSync(new URL('../supabase/migrations/021_set_hojicha_stock.sql', import.meta.url), 'utf8');
+const taterTotsSoldOutMigration = readFileSync(new URL('../supabase/migrations/022_mark_tater_tots_sold_out.sql', import.meta.url), 'utf8');
 const takeappNormalizer = readFileSync(new URL('../scripts/preorders/takeappNormalizer.mjs', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
 
@@ -122,8 +123,14 @@ assert.match(
 );
 
 assert.match(
+  taterTotsSoldOutMigration,
+  /stock_quantity\s*=\s*0[\s\S]*Tater Tots/,
+  'tater tots sold-out migration should zero stock for Tater Tots'
+);
+
+assert.match(
   apiOrders,
-  /SOLD_OUT_PRODUCT_NAMES[\s\S]*Spam Musubi[\s\S]*Iced Banana Hojicha Latte[\s\S]*Mocktail Flight \(Set of 3 mini drinks\)[\s\S]*stock_quantity[\s\S]*apply_product_stock_adjustments[\s\S]*stockAdjustments/,
+  /SOLD_OUT_PRODUCT_NAMES[\s\S]*Spam Musubi[\s\S]*Tater Tots[\s\S]*Iced Banana Hojicha Latte[\s\S]*Mocktail Flight \(Set of 3 mini drinks\)[\s\S]*stock_quantity[\s\S]*apply_product_stock_adjustments[\s\S]*stockAdjustments/,
   'api/orders.ts should reject hard sold-out items and atomically consume tracked product stock during POS checkout'
 );
 
