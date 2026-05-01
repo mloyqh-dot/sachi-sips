@@ -102,6 +102,20 @@ function parseCollectPreorderHeaders(req: VercelRequest): CollectPreorderRequest
   };
 }
 
+function describeCollectPreorderRequest(req: VercelRequest, body: CollectPreorderRequest) {
+  return {
+    bodyKeys: Object.keys(body),
+    bodyType: req.body === undefined ? 'undefined' : Object.prototype.toString.call(req.body),
+    headerKeys: Object.keys(req.headers ?? {}).slice(0, 20),
+    headersType: req.headers === undefined ? 'undefined' : Object.prototype.toString.call(req.headers),
+    headersConstructor: req.headers?.constructor?.name,
+    hasHeadersGet: Boolean(req.headers && typeof (req.headers as Headers).get === 'function'),
+    method: req.method,
+    queryKeys: Object.keys(req.query ?? {}),
+    url: req.url,
+  };
+}
+
 async function findLivePreorderId(
   supabase: SupabaseClient,
   column: string,
@@ -184,7 +198,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!orderId) {
-    res.status(400).json({ error: 'A valid orderId is required' });
+    res.status(400).json({
+      error: 'A valid orderId is required',
+      debug: describeCollectPreorderRequest(req, body),
+    });
     return;
   }
 
