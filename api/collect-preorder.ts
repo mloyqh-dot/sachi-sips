@@ -69,8 +69,8 @@ function firstHeaderValue(
   headers: VercelRequest['headers'],
   headerName: string
 ) {
-  if (headers instanceof Headers) {
-    return headers.get(headerName) ?? undefined;
+  if (headers && typeof (headers as Headers).get === 'function') {
+    return (headers as Headers).get(headerName) ?? undefined;
   }
 
   const entry = Object.entries(headers ?? {}).find(([key]) => key.toLowerCase() === headerName);
