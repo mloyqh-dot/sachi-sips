@@ -10,6 +10,7 @@ const apiCollectPreorder = readFileSync(new URL('../api/collect-preorder.ts', im
 const apiDonations = readFileSync(new URL('../api/donations.ts', import.meta.url), 'utf8');
 const apiDonationsHistory = readFileSync(new URL('../api/donations-history.ts', import.meta.url), 'utf8');
 const apiReceiptNotes = readFileSync(new URL('../api/receipt-notes.ts', import.meta.url), 'utf8');
+const apiEditOrderItems = readFileSync(new URL('../api/edit-order-items.ts', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const posPage = readFileSync(new URL('../src/pages/pos/POSPage.tsx', import.meta.url), 'utf8');
 const dashboardPage = readFileSync(new URL('../src/pages/dashboard/DashboardPage.tsx', import.meta.url), 'utf8');
@@ -421,9 +422,21 @@ assert.match(
 );
 
 assert.match(
+  apiEditOrderItems,
+  /\.eq\('status', 'live'\)[\s\S]*\.from\('order_items'\)[\s\S]*ready_at:\s*null[\s\S]*subtotal[\s\S]*notes/,
+  'api/edit-order-items.ts should edit live order items, reset changed station readiness, and audit the order'
+);
+
+assert.match(
   receiptsPage,
   /noteDraft|saveReceiptNote|receipt-notes/,
   'ReceiptsPage should edit and save receipt notes for reconciliation'
+);
+
+assert.match(
+  liveOrdersPage,
+  /edit-order-items[\s\S]*setOrders[\s\S]*Edit Items/,
+  'LiveOrdersPage should let FOH edit live order items and refresh station-backed order data'
 );
 
 assert.doesNotMatch(
@@ -432,7 +445,7 @@ assert.doesNotMatch(
   'ReceiptsPage should not remain a stub'
 );
 
-for (const apiPath of ['/api/orders', '/api/orders-history', '/api/donations', '/api/donations-history', '/api/live-orders', '/api/preorders', '/api/complete-order', '/api/collect-preorder', '/api/mark-station-ready', '/api/receipt-notes']) {
+for (const apiPath of ['/api/orders', '/api/orders-history', '/api/donations', '/api/donations-history', '/api/live-orders', '/api/preorders', '/api/complete-order', '/api/collect-preorder', '/api/mark-station-ready', '/api/receipt-notes', '/api/edit-order-items']) {
   assert.match(
     viteConfig,
     new RegExp(apiPath.replace(/\//g, '\\/')),

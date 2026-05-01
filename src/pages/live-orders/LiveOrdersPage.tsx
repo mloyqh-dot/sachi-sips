@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { STATION_CATEGORIES } from '../../lib/constants';
 import { getPickupSlotLabel, getPreorderLabel } from '../../lib/orderFormatting';
-import type { Category, Order, OrderItem, OrderRecord, Product } from '../../types';
+import type { Category, MilkOption, Order, OrderItem, OrderRecord, Product, ProductOptions, SugarOption, WarmUpOption } from '../../types';
 
 const POLL_INTERVAL_MS = 5000;
 const READY_GREEN = '#3a7d44';
@@ -12,6 +12,10 @@ const STATION_CATEGORY_MAP = {
   Kitchen: STATION_CATEGORIES.kitchen,
 } as const satisfies Record<string, Category[]>;
 const STATION_READY_CATEGORIES = new Set<Category>(Object.values(STATION_CATEGORY_MAP).flat());
+const SOLD_OUT_PRODUCT_NAMES = new Set([
+  'Classic Shio Pan',
+  'Scallion Cream Cheese Onion Shio Pan',
+]);
 
 const MILK_LABELS: Record<string, string> = {
   dairy: 'Dairy',
@@ -29,6 +33,52 @@ const WARM_UP_LABELS: Record<string, string> = {
   warm_up: 'Warm Up',
   no_warm_up: 'No Warm Up',
 };
+
+type EditableOrderItem = {
+  rowKey: string;
+  id?: string;
+  product_id: string;
+  quantity: number;
+  options: ProductOptions | null;
+};
+
+function isSoldOutProduct(product: Product) {
+  return SOLD_OUT_PRODUCT_NAMES.has(product.name);
+}
+
+function requiresMilkOption(product: Product) {
+  return /matcha latte|hojicha latte/i.test(product.name);
+}
+
+function requiresSugarOption(product: Product) {
+  return requiresMilkOption(product) && !/strawberry matcha|lychee matcha|banana hojicha/i.test(product.name);
+}
+
+function requiresWarmUpOption(product: Product, orderType: Order['order_type']) {
+  return orderType === 'dine_in' && /shio pan|spam musubi/i.test(product.name);
+}
+
+function isOatOnlyLatte(product: Product) {
+  return /banana hojicha latte/i.test(product.name);
+}
+
+function getDefaultOptions(product: Product, orderType: Order['order_type']): ProductOptions | null {
+  const options: ProductOptions = {};
+
+  if (requiresMilkOption(product)) {
+    options.milk = isOatOnlyLatte(product) ? 'oat' : 'dairy';
+  }
+
+  if (requiresSugarOption(product)) {
+    options.sugar = 'normal';
+  }
+
+  if (requiresWarmUpOption(product, orderType)) {
+    options.warm_up = 'warm_up';
+  }
+
+  return Object.keys(options).length > 0 ? options : null;
+}
 
 function formatCreatedTime(value: string) {
   return new Date(value).toLocaleTimeString([], {
@@ -508,6 +558,17 @@ const s = {
     cursor: disabled ? 'wait' as const : 'pointer' as const,
     opacity: disabled ? 0.7 : 1,
   }),
+  secondaryActionButton: {
+    border: '1px solid rgba(104, 40, 55, 0.18)',
+    borderRadius: '999px',
+    padding: '0.78rem 1rem',
+    background: 'rgba(255, 255, 255, 0.7)',
+    color: 'var(--color-burgundy)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '13px',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
   actionHint: {
     fontFamily: "'Public Sans', sans-serif",
     fontSize: '12px',
@@ -521,6 +582,130 @@ const s = {
     lineHeight: 1.5,
     color: '#8B0000',
   },
+  modalOverlay: {
+    position: 'fixed' as const,
+    inset: 0,
+    zIndex: 50,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '1rem',
+    background: 'rgba(82, 48, 26, 0.32)',
+  },
+  modalCard: {
+    width: 'min(760px, 100%)',
+    maxHeight: '92vh',
+    overflowY: 'auto' as const,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '1rem',
+    padding: '1.1rem',
+    borderRadius: '22px',
+    background: '#fffaf0',
+    border: '1px solid rgba(104, 40, 55, 0.18)',
+    boxShadow: '0 18px 42px rgba(82, 48, 26, 0.2)',
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '1rem',
+    alignItems: 'flex-start',
+  },
+  modalTitle: {
+    margin: 0,
+    fontFamily: "'Alice', serif",
+    fontSize: '1.75rem',
+    color: 'var(--color-burgundy)',
+  },
+  modalCloseBtn: {
+    width: '34px',
+    height: '34px',
+    borderRadius: '999px',
+    border: '1px solid rgba(104, 40, 55, 0.18)',
+    background: 'rgba(255, 255, 255, 0.72)',
+    color: 'var(--color-burgundy)',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+  editItemsList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '0.75rem',
+  },
+  editItemRow: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(220px, 1fr) 88px auto',
+    gap: '0.6rem',
+    alignItems: 'start',
+    padding: '0.85rem',
+    borderRadius: '16px',
+    background: 'rgba(240, 228, 191, 0.32)',
+    border: '1px solid rgba(104, 40, 55, 0.1)',
+  },
+  editField: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '0.35rem',
+  },
+  editLabel: {
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '11px',
+    fontWeight: 800,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase' as const,
+    color: 'var(--color-brown)',
+    opacity: 0.72,
+  },
+  editInput: {
+    width: '100%',
+    minHeight: '40px',
+    borderRadius: '12px',
+    border: '1px solid rgba(104, 40, 55, 0.18)',
+    background: 'rgba(255, 255, 255, 0.76)',
+    color: 'var(--color-brown)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '14px',
+    padding: '0.5rem 0.65rem',
+  },
+  optionRow: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: '0.5rem',
+    gridColumn: '1 / -1',
+  },
+  optionSelect: {
+    minWidth: '150px',
+    minHeight: '38px',
+    borderRadius: '999px',
+    border: '1px solid rgba(104, 40, 55, 0.16)',
+    background: 'rgba(255, 255, 255, 0.76)',
+    color: 'var(--color-brown)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '13px',
+    padding: '0.35rem 0.65rem',
+  },
+  removeBtn: {
+    minHeight: '40px',
+    borderRadius: '999px',
+    border: '1px solid rgba(139, 0, 0, 0.2)',
+    background: 'rgba(139, 0, 0, 0.06)',
+    color: '#8B0000',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '12px',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+  modalActions: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap' as const,
+    gap: '0.65rem',
+  },
+  modalPrimaryActions: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: '0.65rem',
+  },
 };
 
 const LiveOrdersPage: React.FC = () => {
@@ -532,6 +717,10 @@ const LiveOrdersPage: React.FC = () => {
   const [completingOrderIds, setCompletingOrderIds] = useState<Record<string, boolean>>({});
   const [orderErrors, setOrderErrors] = useState<Record<string, string>>({});
   const [showPosOnly, setShowPosOnly] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editItems, setEditItems] = useState<EditableOrderItem[]>([]);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const isFetchingRef = useRef(false);
   const hasResolvedInitialLoadRef = useRef(false);
 
@@ -632,11 +821,136 @@ const LiveOrdersPage: React.FC = () => {
   }
 
   const productCategoryMap = new Map(products.map(product => [product.id, product.category]));
+  const productMap = new Map(products.map(product => [product.id, product]));
+  const selectableProducts = products.filter(product => product.is_available && !isSoldOutProduct(product));
   const visibleOrders = showPosOnly
     ? orders.filter(order => order.order_source !== 'preorder')
     : orders;
   const preorderCount = orders.filter(order => order.order_source === 'preorder').length;
   const posOrderCount = orders.length - preorderCount;
+  const editSubtotal = editItems.reduce((sum, item) => {
+    const product = productMap.get(item.product_id);
+    return sum + (product?.price ?? 0) * item.quantity;
+  }, 0);
+  const hasInvalidEditItems = editItems.length === 0 || editItems.some(item => {
+    const product = productMap.get(item.product_id);
+    return !product || !product.is_available || isSoldOutProduct(product) || item.quantity <= 0;
+  });
+
+  function openEditOrder(order: Order) {
+    setEditingOrder(order);
+    setEditItems(order.items.map(item => ({
+      rowKey: item.id,
+      id: item.id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      options: item.options,
+    })));
+    setEditError(null);
+  }
+
+  function closeEditOrder() {
+    if (isSavingEdit) return;
+
+    setEditingOrder(null);
+    setEditItems([]);
+    setEditError(null);
+  }
+
+  function updateEditItemProduct(rowKey: string, productId: string) {
+    const product = productMap.get(productId);
+    if (!product || !editingOrder) return;
+
+    setEditItems(current => current.map(item => (
+      item.rowKey === rowKey
+        ? { ...item, product_id: productId, options: getDefaultOptions(product, editingOrder.order_type) }
+        : item
+    )));
+  }
+
+  function updateEditItemQuantity(rowKey: string, quantity: number) {
+    setEditItems(current => current.map(item => (
+      item.rowKey === rowKey
+        ? { ...item, quantity: Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1 }
+        : item
+    )));
+  }
+
+  function updateEditItemOptions(rowKey: string, patch: ProductOptions) {
+    setEditItems(current => current.map(item => {
+      if (item.rowKey !== rowKey) return item;
+
+      return {
+        ...item,
+        options: {
+          ...(item.options ?? {}),
+          ...patch,
+        },
+      };
+    }));
+  }
+
+  function addEditItem() {
+    const product = selectableProducts[0];
+    if (!product || !editingOrder) return;
+
+    setEditItems(current => [
+      ...current,
+      {
+        rowKey: `new-${Date.now()}-${current.length}`,
+        product_id: product.id,
+        quantity: 1,
+        options: getDefaultOptions(product, editingOrder.order_type),
+      },
+    ]);
+  }
+
+  function removeEditItem(rowKey: string) {
+    setEditItems(current => current.filter(item => item.rowKey !== rowKey));
+  }
+
+  async function saveEditOrder() {
+    if (!editingOrder || isSavingEdit || hasInvalidEditItems) return;
+
+    setIsSavingEdit(true);
+    setEditError(null);
+
+    try {
+      const response = await fetch('/api/edit-order-items', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: editingOrder.id,
+          staffName: 'FOH',
+          total: editingOrder.total,
+          items: editItems.map(item => ({
+            id: item.id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            options: item.options,
+          })),
+        }),
+      });
+      const result = await response.json().catch(() => null) as { error?: string; order?: OrderRecord } | null;
+
+      if (!response.ok || !result?.order) {
+        throw new Error(result?.error || 'Unable to edit order items');
+      }
+
+      const updatedOrder = normalizeOrder(result.order);
+
+      setOrders(current => current.map(order => order.id === updatedOrder.id ? updatedOrder : order));
+      setSuccessMessage(`Order ${updatedOrder.ticket_number} items updated.`);
+      setEditingOrder(null);
+      setEditItems([]);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
 
   return (
     <div style={s.page}>
@@ -760,6 +1074,13 @@ const LiveOrdersPage: React.FC = () => {
                 <div style={s.actions}>
                   <button
                     type="button"
+                    style={s.secondaryActionButton}
+                    onClick={() => openEditOrder(order)}
+                  >
+                    Edit Items
+                  </button>
+                  <button
+                    type="button"
                     style={s.actionButton(Boolean(completingOrderIds[order.id]) || !isFullyReady)}
                     disabled={Boolean(completingOrderIds[order.id]) || !isFullyReady}
                     onClick={() => {
@@ -782,6 +1103,146 @@ const LiveOrdersPage: React.FC = () => {
               </article>
             )})}
           </section>
+        )}
+
+        {editingOrder && (
+          <div style={s.modalOverlay} onClick={closeEditOrder}>
+            <div style={s.modalCard} onClick={event => event.stopPropagation()}>
+              <div style={s.modalHeader}>
+                <div>
+                  <span style={s.ticketLabel}>Order {editingOrder.ticket_number}</span>
+                  <h2 style={s.modalTitle}>Edit Items</h2>
+                  <p style={s.statusNote}>
+                    Item subtotal becomes ${editSubtotal.toFixed(2)}. Ticket total remains ${editingOrder.total.toFixed(2)}.
+                  </p>
+                </div>
+                <button type="button" style={s.modalCloseBtn} onClick={closeEditOrder} aria-label="Close edit items">x</button>
+              </div>
+
+              <div style={s.editItemsList}>
+                {editItems.map(item => {
+                  const product = productMap.get(item.product_id);
+                  const isInvalidProduct = !product || !product.is_available || isSoldOutProduct(product);
+
+                  return (
+                    <div key={item.rowKey} style={s.editItemRow}>
+                      <label style={s.editField}>
+                        <span style={s.editLabel}>Item</span>
+                        <select
+                          style={s.editInput}
+                          value={item.product_id}
+                          onChange={event => updateEditItemProduct(item.rowKey, event.target.value)}
+                        >
+                          {products.map(productOption => {
+                            const unavailable = !productOption.is_available || isSoldOutProduct(productOption);
+
+                            return (
+                              <option
+                                key={productOption.id}
+                                value={productOption.id}
+                                disabled={unavailable}
+                              >
+                                {productOption.name}{unavailable ? ' - SOLD OUT' : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </label>
+
+                      <label style={s.editField}>
+                        <span style={s.editLabel}>Qty</span>
+                        <input
+                          style={s.editInput}
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={event => updateEditItemQuantity(item.rowKey, Number(event.target.value))}
+                        />
+                      </label>
+
+                      <button type="button" style={s.removeBtn} onClick={() => removeEditItem(item.rowKey)}>
+                        Remove
+                      </button>
+
+                      {product && !isInvalidProduct && (
+                        <div style={s.optionRow}>
+                          {requiresMilkOption(product) && (
+                            <select
+                              style={s.optionSelect}
+                              value={item.options?.milk ?? (isOatOnlyLatte(product) ? 'oat' : 'dairy')}
+                              onChange={event => updateEditItemOptions(item.rowKey, { milk: event.target.value as MilkOption })}
+                              disabled={isOatOnlyLatte(product)}
+                            >
+                              <option value="dairy">Dairy</option>
+                              <option value="oat">Oat</option>
+                            </select>
+                          )}
+
+                          {requiresSugarOption(product) && (
+                            <select
+                              style={s.optionSelect}
+                              value={item.options?.sugar ?? 'normal'}
+                              onChange={event => updateEditItemOptions(item.rowKey, { sugar: event.target.value as SugarOption })}
+                            >
+                              <option value="no_sugar">No Sugar</option>
+                              <option value="less_sweet">Less Sweet</option>
+                              <option value="normal">Normal Sugar</option>
+                              <option value="more_sweet">More Sweet</option>
+                            </select>
+                          )}
+
+                          {requiresWarmUpOption(product, editingOrder.order_type) && (
+                            <select
+                              style={s.optionSelect}
+                              value={item.options?.warm_up ?? 'warm_up'}
+                              onChange={event => updateEditItemOptions(item.rowKey, { warm_up: event.target.value as WarmUpOption })}
+                            >
+                              <option value="warm_up">Warm Up</option>
+                              <option value="no_warm_up">No Warm Up</option>
+                            </select>
+                          )}
+                        </div>
+                      )}
+
+                      {isInvalidProduct && (
+                        <span style={{ ...s.inlineError, gridColumn: '1 / -1' }}>
+                          Choose an available replacement before saving.
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {editError && <div style={s.alert('error')}>{editError}</div>}
+
+              <div style={s.modalActions}>
+                <button
+                  type="button"
+                  style={s.secondaryActionButton}
+                  onClick={addEditItem}
+                  disabled={selectableProducts.length === 0}
+                >
+                  Add Item
+                </button>
+                <div style={s.modalPrimaryActions}>
+                  <button type="button" style={s.secondaryActionButton} onClick={closeEditOrder}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    style={s.actionButton(isSavingEdit || hasInvalidEditItems)}
+                    disabled={isSavingEdit || hasInvalidEditItems}
+                    onClick={() => {
+                      void saveEditOrder();
+                    }}
+                  >
+                    {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
