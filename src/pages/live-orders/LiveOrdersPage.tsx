@@ -121,6 +121,22 @@ function getDefaultOptions(product: Product, orderType: Order['order_type']): Pr
   return Object.keys(options).length > 0 ? options : null;
 }
 
+function normalizeOptionsForOrderType(
+  product: Product,
+  options: ProductOptions | null,
+  orderType: Order['order_type']
+): ProductOptions | null {
+  const next = { ...(options ?? {}) };
+
+  if (requiresWarmUpOption(product, orderType)) {
+    next.warm_up = next.warm_up ?? 'warm_up';
+  } else {
+    delete next.warm_up;
+  }
+
+  return Object.keys(next).length > 0 ? next : null;
+}
+
 function formatCreatedTime(value: string) {
   return new Date(value).toLocaleTimeString([], {
     hour: 'numeric',
@@ -673,6 +689,9 @@ const s = {
     flexDirection: 'column' as const,
     gap: '0.75rem',
   },
+  orderTypeEditor: {
+    maxWidth: '260px',
+  },
   editItemRow: {
     display: 'grid',
     gridTemplateColumns: 'minmax(220px, 1fr) 88px auto',
@@ -759,6 +778,7 @@ const LiveOrdersPage: React.FC = () => {
   const [orderErrors, setOrderErrors] = useState<Record<string, string>>({});
   const [showPosOnly, setShowPosOnly] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editOrderType, setEditOrderType] = useState<Order['order_type']>('dine_in');
   const [editItems, setEditItems] = useState<EditableOrderItem[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -888,6 +908,7 @@ const LiveOrdersPage: React.FC = () => {
 
   function openEditOrder(order: Order) {
     setEditingOrder(order);
+    setEditOrderType(order.order_type);
     setEditItems(order.items.map(item => ({
       rowKey: item.id,
       id: item.id,
@@ -902,8 +923,22 @@ const LiveOrdersPage: React.FC = () => {
     if (isSavingEdit) return;
 
     setEditingOrder(null);
+    setEditOrderType('dine_in');
     setEditItems([]);
     setEditError(null);
+  }
+
+  function updateEditOrderType(orderType: Order['order_type']) {
+    setEditOrderType(orderType);
+    setEditItems(current => current.map(item => {
+      const product = productMap.get(item.product_id);
+      if (!product) return item;
+
+      return {
+        ...item,
+        options: normalizeOptionsForOrderType(product, item.options, orderType),
+      };
+    }));
   }
 
   function updateEditItemProduct(rowKey: string, productId: string) {
@@ -912,7 +947,7 @@ const LiveOrdersPage: React.FC = () => {
 
     setEditItems(current => current.map(item => (
       item.rowKey === rowKey
-        ? { ...item, product_id: productId, options: getDefaultOptions(product, editingOrder.order_type) }
+        ? { ...item, product_id: productId, options: getDefaultOptions(product, editOrderType) }
         : item
     )));
   }
@@ -949,7 +984,7 @@ const LiveOrdersPage: React.FC = () => {
         rowKey: `new-${Date.now()}-${current.length}`,
         product_id: product.id,
         quantity: 1,
-        options: getDefaultOptions(product, editingOrder.order_type),
+        options: getDefaultOptions(product, editOrderType),
       },
     ]);
   }
@@ -973,6 +1008,7 @@ const LiveOrdersPage: React.FC = () => {
         body: JSON.stringify({
           orderId: editingOrder.id,
           staffName: 'FOH',
+          orderType: editOrderType,
           total: editingOrder.total,
           items: editItems.map(item => ({
             id: item.id,
@@ -1001,8 +1037,9 @@ const LiveOrdersPage: React.FC = () => {
         };
       }));
       setOrders(current => current.map(order => order.id === updatedOrder.id ? updatedOrder : order));
-      setSuccessMessage(`Order ${updatedOrder.ticket_number} items updated.`);
+      setSuccessMessage(`Order ${updatedOrder.ticket_number} updated.`);
       setEditingOrder(null);
+      setEditOrderType('dine_in');
       setEditItems([]);
     } catch (err) {
       setEditError(err instanceof Error ? err.message : 'Unknown error');
@@ -1172,10 +1209,24 @@ const LiveOrdersPage: React.FC = () => {
                   <span style={s.ticketLabel}>Order {editingOrder.ticket_number}</span>
                   <h2 style={s.modalTitle}>Edit Items</h2>
                   <p style={s.statusNote}>
-                    Item subtotal becomes ${editSubtotal.toFixed(2)}. Ticket total remains ${editingOrder.total.toFixed(2)}.
+                    {getOrderTypeLabel(editOrderType)}. Item subtotal becomes ${editSubtotal.toFixed(2)}. Ticket total remains ${editingOrder.total.toFixed(2)}.
                   </p>
                 </div>
                 <button type="button" style={s.modalCloseBtn} onClick={closeEditOrder} aria-label="Close edit items">x</button>
+              </div>
+
+              <div style={s.orderTypeEditor}>
+                <label style={s.editField}>
+                  <span style={s.editLabel}>Dine-in / Takeaway</span>
+                  <select
+                    style={s.editInput}
+                    value={editOrderType}
+                    onChange={event => updateEditOrderType(event.target.value as Order['order_type'])}
+                  >
+                    <option value="dine_in">Dine In</option>
+                    <option value="takeaway">Takeaway</option>
+                  </select>
+                </label>
               </div>
 
               <div style={s.editItemsList}>
@@ -1255,7 +1306,7 @@ const LiveOrdersPage: React.FC = () => {
                             </select>
                           )}
 
-                          {requiresWarmUpOption(product, editingOrder.order_type) && (
+                          {requiresWarmUpOption(product, editOrderType) && (
                             <select
                               style={s.optionSelect}
                               value={item.options?.warm_up ?? 'warm_up'}

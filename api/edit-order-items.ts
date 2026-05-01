@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 type MilkOption = 'dairy' | 'oat';
 type SugarOption = 'no_sugar' | 'less_sweet' | 'normal' | 'more_sweet';
 type WarmUpOption = 'warm_up' | 'no_warm_up';
+type OrderType = 'dine_in' | 'takeaway';
 
 type ProductOptions = {
   milk?: MilkOption;
@@ -20,6 +21,7 @@ type EditOrderItemPayload = {
 type EditOrderItemsRequest = {
   orderId?: string;
   staffName?: string;
+  orderType?: OrderType;
   total?: number;
   items?: EditOrderItemPayload[];
 };
@@ -48,6 +50,7 @@ type ExistingOrderRow = {
   id: string;
   ticket_number: string;
   status: string;
+  order_type: OrderType;
   total: number;
   notes: string | null;
 };
@@ -105,6 +108,10 @@ function isSugarOption(value: unknown): value is SugarOption {
 
 function isWarmUpOption(value: unknown): value is WarmUpOption {
   return value === 'warm_up' || value === 'no_warm_up';
+}
+
+function isOrderType(value: unknown): value is OrderType {
+  return value === 'dine_in' || value === 'takeaway';
 }
 
 function normalizeOptions(options: ProductOptions | null | undefined): ProductOptions | null {
@@ -219,6 +226,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = req.body ?? {};
   const orderId = body.orderId?.trim();
   const items = body.items ?? [];
+  const orderType = body.orderType;
 
   if (!orderId) {
     res.status(400).json({ error: 'Order id is required' });
@@ -233,13 +241,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
   const { data: order, error: orderError } = await supabase
     .from('orders')
-    .select('id, ticket_number, status, total, notes')
+    .select('id, ticket_number, status, order_type, total, notes')
     .eq('id', orderId)
     .eq('status', 'live')
     .single();
 
   if (orderError || !order) {
     res.status(404).json({ error: 'Live order not found' });
+    return;
+  }
+
+  if (orderType !== undefined && !isOrderType(orderType)) {
+    res.status(400).json({ error: 'Order type must be dine_in or takeaway' });
     return;
   }
 
@@ -429,6 +442,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { error: orderUpdateError } = await supabase
     .from('orders')
     .update({
+      order_type: orderType ?? (order as ExistingOrderRow).order_type,
       subtotal,
       total,
       notes: nextNotes,

@@ -117,8 +117,8 @@ assert.match(
 
 assert.match(
   hojichaStockMigration,
-  /stock_quantity\s*=\s*9[\s\S]*Iced Hojicha Latte/,
-  'hojicha stock migration should seed Iced Hojicha Latte at 9 remaining'
+  /stock_quantity\s*=\s*8[\s\S]*Iced Hojicha Latte/,
+  'hojicha stock migration should seed Iced Hojicha Latte at 8 remaining'
 );
 
 assert.match(
@@ -498,6 +498,12 @@ assert.match(
 );
 
 assert.match(
+  apiEditOrderItems,
+  /orderType[\s\S]*isOrderType[\s\S]*order_type:\s*orderType/,
+  'api/edit-order-items.ts should allow FOH to edit a live order dine-in/takeaway value'
+);
+
+assert.match(
   receiptsPage,
   /noteDraft|saveReceiptNote|receipt-notes/,
   'ReceiptsPage should edit and save receipt notes for reconciliation'
@@ -507,6 +513,12 @@ assert.match(
   liveOrdersPage,
   /edit-order-items[\s\S]*setOrders[\s\S]*Edit Items/,
   'LiveOrdersPage should let FOH edit live order items and refresh station-backed order data'
+);
+
+assert.match(
+  liveOrdersPage,
+  /editOrderType[\s\S]*orderType:\s*editOrderType[\s\S]*Dine In[\s\S]*Takeaway/,
+  'LiveOrdersPage should let FOH edit dine-in/takeaway on live orders'
 );
 
 assert.doesNotMatch(
