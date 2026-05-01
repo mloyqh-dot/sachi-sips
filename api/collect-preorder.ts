@@ -16,7 +16,7 @@ type CollectPreorderRequest = {
 type VercelRequest = {
   method?: string;
   body?: CollectPreorderRequest | string | Uint8Array;
-  headers?: Record<string, string | string[] | undefined>;
+  headers?: Record<string, string | string[] | undefined> | Headers;
   query?: Record<string, string | string[] | undefined>;
   url?: string;
 };
@@ -69,6 +69,10 @@ function firstHeaderValue(
   headers: VercelRequest['headers'],
   headerName: string
 ) {
+  if (headers instanceof Headers) {
+    return headers.get(headerName) ?? undefined;
+  }
+
   const entry = Object.entries(headers ?? {}).find(([key]) => key.toLowerCase() === headerName);
   return firstQueryValue(entry?.[1]);
 }
