@@ -25,6 +25,7 @@ const customerNameMigration = readFileSync(new URL('../supabase/migrations/013_a
 const donationsMigration = readFileSync(new URL('../supabase/migrations/012_create_donations.sql', import.meta.url), 'utf8');
 const preorderMigration = readFileSync(new URL('../supabase/migrations/015_add_preorder_workflow.sql', import.meta.url), 'utf8');
 const snackStockMigration = readFileSync(new URL('../supabase/migrations/018_add_snack_stock_tracking.sql', import.meta.url), 'utf8');
+const snackSoldOutMigration = readFileSync(new URL('../supabase/migrations/019_mark_spam_musubi_banana_hojicha_sold_out.sql', import.meta.url), 'utf8');
 const takeappNormalizer = readFileSync(new URL('../scripts/preorders/takeappNormalizer.mjs', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
 
@@ -101,9 +102,15 @@ assert.match(
 );
 
 assert.match(
+  snackSoldOutMigration,
+  /stock_quantity\s*=\s*0[\s\S]*Spam Musubi[\s\S]*Iced Banana Hojicha Latte/,
+  'sold-out migration should mark Spam Musubi and Banana Hojicha with zero stock'
+);
+
+assert.match(
   apiOrders,
-  /stock_quantity[\s\S]*apply_product_stock_adjustments[\s\S]*stockAdjustments/,
-  'api/orders.ts should atomically consume tracked product stock during POS checkout'
+  /SOLD_OUT_PRODUCT_NAMES[\s\S]*Spam Musubi[\s\S]*Iced Banana Hojicha Latte[\s\S]*stock_quantity[\s\S]*apply_product_stock_adjustments[\s\S]*stockAdjustments/,
+  'api/orders.ts should reject hard sold-out items and atomically consume tracked product stock during POS checkout'
 );
 
 assert.match(

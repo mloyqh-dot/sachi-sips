@@ -41,6 +41,12 @@ type VercelResponse = {
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SOLD_OUT_PRODUCT_NAMES = new Set([
+  'Classic Shio Pan',
+  'Scallion Cream Cheese Onion Shio Pan',
+  'Spam Musubi',
+  'Iced Banana Hojicha Latte',
+]);
 
 type ProductRow = {
   id: string;
@@ -116,6 +122,10 @@ function hasValidOptions(item: OrderItemPayload) {
 
 function roundCurrency(value: number) {
   return Number(value.toFixed(2));
+}
+
+function isSoldOutProduct(product: ProductRow) {
+  return SOLD_OUT_PRODUCT_NAMES.has(product.name);
 }
 
 function buildStockAdjustments(items: CanonicalOrderItemPayload[], productMap: Map<string, ProductRow>) {
@@ -217,8 +227,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    if (!product.is_available) {
-      res.status(400).json({ error: `${product.name} is no longer available` });
+    if (!product.is_available || isSoldOutProduct(product)) {
+      res.status(400).json({ error: `${product.name} is sold out or unavailable` });
       return;
     }
 

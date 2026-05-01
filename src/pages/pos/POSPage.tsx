@@ -38,6 +38,8 @@ const FINAL_TOTAL_PRICE_KEY = 'final-total';
 const SOLD_OUT_PRODUCT_NAMES = new Set([
   'Classic Shio Pan',
   'Scallion Cream Cheese Onion Shio Pan',
+  'Spam Musubi',
+  'Iced Banana Hojicha Latte',
 ]);
 
 function isSoldOutProduct(product: Product) {

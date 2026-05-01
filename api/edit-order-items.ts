@@ -86,6 +86,8 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SOLD_OUT_PRODUCT_NAMES = new Set([
   'Classic Shio Pan',
   'Scallion Cream Cheese Onion Shio Pan',
+  'Spam Musubi',
+  'Iced Banana Hojicha Latte',
 ]);
 
 function roundCurrency(value: number) {
