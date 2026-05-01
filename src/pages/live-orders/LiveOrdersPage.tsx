@@ -17,6 +17,7 @@ const SOLD_OUT_PRODUCT_NAMES = new Set([
   'Scallion Cream Cheese Onion Shio Pan',
   'Spam Musubi',
   'Iced Banana Hojicha Latte',
+  'Mocktail Flight (Set of 3 mini drinks)',
 ]);
 
 const MILK_LABELS: Record<string, string> = {
