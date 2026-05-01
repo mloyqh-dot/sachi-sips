@@ -89,6 +89,9 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SOLD_OUT_PRODUCT_NAMES = new Set([
   'Classic Shio Pan',
   'Scallion Cream Cheese Onion Shio Pan',
+  'Iced Matcha Latte',
+  'Iced Strawberry Matcha Latte',
+  'Iced Lychee Matcha Latte',
   'Spam Musubi',
   'Tater Tots',
   'Iced Banana Hojicha Latte',
