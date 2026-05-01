@@ -27,6 +27,7 @@ const preorderMigration = readFileSync(new URL('../supabase/migrations/015_add_p
 const snackStockMigration = readFileSync(new URL('../supabase/migrations/018_add_snack_stock_tracking.sql', import.meta.url), 'utf8');
 const snackSoldOutMigration = readFileSync(new URL('../supabase/migrations/019_mark_spam_musubi_banana_hojicha_sold_out.sql', import.meta.url), 'utf8');
 const mocktailSoldOutMigration = readFileSync(new URL('../supabase/migrations/020_mark_mocktails_sold_out.sql', import.meta.url), 'utf8');
+const hojichaStockMigration = readFileSync(new URL('../supabase/migrations/021_set_hojicha_stock.sql', import.meta.url), 'utf8');
 const takeappNormalizer = readFileSync(new URL('../scripts/preorders/takeappNormalizer.mjs', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
 
@@ -112,6 +113,12 @@ assert.match(
   mocktailSoldOutMigration,
   /stock_quantity\s*=\s*0[\s\S]*category\s*=\s*'Mocktail'/,
   'mocktail sold-out migration should zero stock for the Mocktail category'
+);
+
+assert.match(
+  hojichaStockMigration,
+  /stock_quantity\s*=\s*9[\s\S]*Iced Hojicha Latte/,
+  'hojicha stock migration should seed Iced Hojicha Latte at 9 remaining'
 );
 
 assert.match(
