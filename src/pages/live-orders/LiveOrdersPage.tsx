@@ -13,14 +13,11 @@ const STATION_CATEGORY_MAP = {
 } as const satisfies Record<string, Category[]>;
 const STATION_READY_CATEGORIES = new Set<Category>(Object.values(STATION_CATEGORY_MAP).flat());
 const SOLD_OUT_PRODUCT_NAMES = new Set([
-  'Classic Shio Pan',
-  'Scallion Cream Cheese Onion Shio Pan',
   'Iced Matcha Latte',
   'Iced Strawberry Matcha Latte',
   'Iced Lychee Matcha Latte',
   'Momotarō - Hot',
   'Momotarō - Iced',
-  'Spam Musubi',
   'Tater Tots',
   'Iced Banana Hojicha Latte',
   'Mocktail Flight (Set of 3 mini drinks)',

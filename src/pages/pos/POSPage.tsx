@@ -36,14 +36,11 @@ const WARM_UP_OPTIONS: { value: WarmUpOption; label: string }[] = [
 ];
 const FINAL_TOTAL_PRICE_KEY = 'final-total';
 const SOLD_OUT_PRODUCT_NAMES = new Set([
-  'Classic Shio Pan',
-  'Scallion Cream Cheese Onion Shio Pan',
   'Iced Matcha Latte',
   'Iced Strawberry Matcha Latte',
   'Iced Lychee Matcha Latte',
   'Momotarō - Hot',
   'Momotarō - Iced',
-  'Spam Musubi',
   'Tater Tots',
   'Iced Banana Hojicha Latte',
   'Mocktail Flight (Set of 3 mini drinks)',

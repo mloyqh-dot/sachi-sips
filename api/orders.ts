@@ -42,14 +42,11 @@ type VercelResponse = {
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SOLD_OUT_PRODUCT_NAMES = new Set([
-  'Classic Shio Pan',
-  'Scallion Cream Cheese Onion Shio Pan',
   'Iced Matcha Latte',
   'Iced Strawberry Matcha Latte',
   'Iced Lychee Matcha Latte',
   'Momotarō - Hot',
   'Momotarō - Iced',
-  'Spam Musubi',
   'Tater Tots',
   'Iced Banana Hojicha Latte',
   'Mocktail Flight (Set of 3 mini drinks)',
