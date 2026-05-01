@@ -208,6 +208,35 @@ const s = {
     background: 'rgba(229, 144, 144, 0.12)',
     border: '1px solid rgba(229, 144, 144, 0.28)',
   },
+  queueControls: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.8rem 0.9rem',
+    borderRadius: '18px',
+    background: 'rgba(255, 252, 246, 0.78)',
+    border: '1px solid rgba(104, 40, 55, 0.12)',
+    boxShadow: '0 6px 16px rgba(82, 48, 26, 0.06)',
+  },
+  filterToggle: (active: boolean) => ({
+    minHeight: '38px',
+    padding: '0.45rem 0.8rem',
+    borderRadius: '999px',
+    border: `1px solid ${active ? 'rgba(104, 40, 55, 0.34)' : 'rgba(104, 40, 55, 0.16)'}`,
+    background: active ? 'var(--color-burgundy)' : 'rgba(255, 255, 255, 0.62)',
+    color: active ? '#FFF7E8' : 'var(--color-brown)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '12px',
+    fontWeight: 800,
+    cursor: 'pointer',
+  }),
+  filterNote: {
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '12px',
+    color: 'var(--color-brown)',
+    opacity: 0.76,
+  },
   statusLabel: {
     fontFamily: "'Public Sans', sans-serif",
     fontSize: '11px',
@@ -502,6 +531,7 @@ const LiveOrdersPage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [completingOrderIds, setCompletingOrderIds] = useState<Record<string, boolean>>({});
   const [orderErrors, setOrderErrors] = useState<Record<string, string>>({});
+  const [showPosOnly, setShowPosOnly] = useState(false);
   const isFetchingRef = useRef(false);
   const hasResolvedInitialLoadRef = useRef(false);
 
@@ -602,6 +632,11 @@ const LiveOrdersPage: React.FC = () => {
   }
 
   const productCategoryMap = new Map(products.map(product => [product.id, product.category]));
+  const visibleOrders = showPosOnly
+    ? orders.filter(order => order.order_source !== 'preorder')
+    : orders;
+  const preorderCount = orders.filter(order => order.order_source === 'preorder').length;
+  const posOrderCount = orders.length - preorderCount;
 
   return (
     <div style={s.page}>
@@ -616,22 +651,44 @@ const LiveOrdersPage: React.FC = () => {
             </p>
           </div>
           <div style={s.statusPanel}>
-            <span style={s.statusLabel}>Open Tickets</span>
-            <span style={s.statusValue}>{orders.length}</span>
-            <span style={s.statusNote}>Mark tickets as served to clear them from the live kitchen queue.</span>
+            <span style={s.statusLabel}>{showPosOnly ? 'POS Tickets' : 'Open Tickets'}</span>
+            <span style={s.statusValue}>{visibleOrders.length}</span>
+            <span style={s.statusNote}>
+              {showPosOnly
+                ? `${preorderCount} preorder${preorderCount === 1 ? '' : 's'} hidden from this FOH view.`
+                : 'Mark tickets as served to clear them from the live kitchen queue.'}
+            </span>
           </div>
+        </section>
+
+        <section style={s.queueControls}>
+          <button
+            type="button"
+            style={s.filterToggle(showPosOnly)}
+            onClick={() => setShowPosOnly(current => !current)}
+            aria-pressed={showPosOnly}
+          >
+            {showPosOnly ? 'Showing POS only' : 'Show POS only'}
+          </button>
+          <span style={s.filterNote}>
+            View-only FOH filter: {posOrderCount} POS / {preorderCount} preorder. Stations still receive all released prep tickets.
+          </span>
         </section>
 
         {loading && <div style={s.alert('info')}>Loading live orders...</div>}
         {!loading && error && <div style={s.alert('error')}>Unable to load live orders: {error}</div>}
         {!loading && !error && successMessage && <div style={s.alert('info')}>{successMessage}</div>}
-        {!loading && !error && orders.length === 0 && (
-          <div style={s.alert('info')}>No live orders right now. New tickets will appear here after refresh.</div>
+        {!loading && !error && visibleOrders.length === 0 && (
+          <div style={s.alert('info')}>
+            {orders.length === 0
+              ? 'No live orders right now. New tickets will appear here after refresh.'
+              : 'No POS orders in this filtered view. Toggle back to see released preorders.'}
+          </div>
         )}
 
-        {!loading && !error && orders.length > 0 && (
+        {!loading && !error && visibleOrders.length > 0 && (
           <section style={s.grid}>
-            {orders.map(order => {
+            {visibleOrders.map(order => {
               const isFullyReady = isOrderReadyToServe(order, productCategoryMap);
 
               return (

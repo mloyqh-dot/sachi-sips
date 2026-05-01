@@ -153,6 +153,12 @@ assert.match(
 );
 
 assert.match(
+  liveOrdersPage,
+  /showPosOnly|visibleOrders|order_source !== 'preorder'/,
+  'LiveOrdersPage should offer a view-only filter that hides preorders for FOH'
+);
+
+assert.match(
   apiPreorders,
   /\.eq\('order_source', 'preorder'\)/,
   'api/preorders.ts should return preorder orders only'
