@@ -4,12 +4,14 @@ create table if not exists donations (
   amount numeric(10, 2) not null check (amount > 0),
   payment_method text not null check (payment_method in ('cash', 'card', 'other')),
   staff_name text not null check (length(trim(staff_name)) > 0),
+  donor_name text,
   note text
 );
 
 create index if not exists idx_donations_created_at on donations(created_at desc);
 create index if not exists idx_donations_payment_method on donations(payment_method);
 create index if not exists idx_donations_staff_name on donations(staff_name);
+create index if not exists idx_donations_donor_name on donations(donor_name);
 
 alter table donations enable row level security;
 

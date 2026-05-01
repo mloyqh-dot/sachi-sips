@@ -107,6 +107,7 @@ export interface Donation {
   amount: number;
   payment_method: PaymentMethod;
   staff_name: string;
+  donor_name: string | null;
   note: string | null;
 }
 
@@ -114,6 +115,7 @@ export interface DonationPayload {
   amount: number;
   payment_method: PaymentMethod;
   staff_name: string;
+  donor_name: string;
   note?: string | null;
 }
 

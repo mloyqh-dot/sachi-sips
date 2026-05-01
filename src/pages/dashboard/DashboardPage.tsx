@@ -554,7 +554,9 @@ const DashboardPage: React.FC = () => {
                         <span style={s.rankedName}>{formatDateTime(donation.created_at)}</span>
                         <span>{formatCurrency(Number(donation.amount))} · {formatPaymentMethod(donation.payment_method)}</span>
                       </span>
-                      <span style={s.itemLine}>{donation.staff_name}{donation.note ? ` · ${donation.note}` : ''}</span>
+                      <span style={s.itemLine}>
+                        Donor: {donation.donor_name || 'Not recorded'} · Staff: {donation.staff_name}{donation.note ? ` · ${donation.note}` : ''}
+                      </span>
                     </div>
                   )) : <span style={s.itemLine}>No recent donations yet.</span>}
                 </div>

@@ -20,6 +20,7 @@ const stationApi = readFileSync(new URL('../api/mark-station-ready.ts', import.m
 const stationConstants = readFileSync(new URL('../src/lib/constants.ts', import.meta.url), 'utf8');
 const stationPage = readFileSync(new URL('../src/pages/stations/StationPage.tsx', import.meta.url), 'utf8');
 const customerNameMigration = readFileSync(new URL('../supabase/migrations/013_add_customer_name_to_orders.sql', import.meta.url), 'utf8');
+const donationsMigration = readFileSync(new URL('../supabase/migrations/012_create_donations.sql', import.meta.url), 'utf8');
 const preorderMigration = readFileSync(new URL('../supabase/migrations/015_add_preorder_workflow.sql', import.meta.url), 'utf8');
 const takeappNormalizer = readFileSync(new URL('../scripts/preorders/takeappNormalizer.mjs', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
@@ -299,6 +300,24 @@ assert.match(
 );
 
 assert.match(
+  donationsMigration,
+  /donor_name/,
+  'donations migration should track donor names'
+);
+
+assert.match(
+  apiDonations,
+  /donor_name/,
+  'api/donations.ts should write donor_name'
+);
+
+assert.match(
+  apiDonationsHistory,
+  /donor_name/,
+  'api/donations-history.ts should return donor_name'
+);
+
+assert.match(
   apiDonations,
   /amount\s*<=\s*0/,
   'api/donations.ts should reject non-positive donation amounts'
@@ -324,8 +343,14 @@ assert.match(
 
 assert.match(
   donationsPage,
-  /Record Donation|createDonation|paymentMethod|staffName/,
-  'DonationsPage should record custom-amount donations with payment method and staff attribution'
+  /Record Donation|createDonation|paymentMethod|staffName|donorName/,
+  'DonationsPage should record custom-amount donations with donor name, payment method, and staff attribution'
+);
+
+assert.match(
+  posPage,
+  /openDonationModal|submitDonation|createDonation/,
+  'POSPage should expose a custom-amount donation flow backed by standalone donation records'
 );
 
 assert.match(
@@ -336,8 +361,8 @@ assert.match(
 
 assert.match(
   dashboardPage,
-  /fetchDonations|donationTotal|Combined Collected/,
-  'DashboardPage should include donation totals separately from sales revenue'
+  /fetchDonations|donationTotal|Combined Collected|donor_name/,
+  'DashboardPage should include donation totals and donor names separately from sales revenue'
 );
 
 assert.match(

@@ -17,6 +17,10 @@ function isMissingDonationsTable(error: { code?: string; message?: string }) {
   return error.code === 'PGRST205' || error.message?.includes("table 'public.donations'");
 }
 
+function isMissingDonorNameColumn(error: { code?: string; message?: string }) {
+  return error.code === 'PGRST204' || error.message?.includes("'donor_name'");
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Allow', ['GET']);
 
@@ -33,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
   const { data, error } = await supabase
     .from('donations')
-    .select('id, created_at, amount, payment_method, staff_name, note')
+    .select('id, created_at, amount, payment_method, staff_name, donor_name, note')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -41,6 +45,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(200).json({
         donations: [],
         warning: 'Donations table has not been migrated yet',
+      });
+      return;
+    }
+
+    if (isMissingDonorNameColumn(error)) {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('donations')
+        .select('id, created_at, amount, payment_method, staff_name, note')
+        .order('created_at', { ascending: false });
+
+      if (fallbackError) {
+        res.status(500).json({ error: fallbackError.message });
+        return;
+      }
+
+      res.status(200).json({
+        donations: (fallbackData ?? []).map(donation => ({ ...donation, donor_name: null })),
+        warning: 'Donor names column has not been migrated yet',
       });
       return;
     }

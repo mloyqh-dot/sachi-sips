@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { CATEGORY_META, CATEGORY_ORDER } from '../../lib/constants';
+import { createDonation } from '../../lib/donations';
 import type {
   Product,
   CartItem,
@@ -300,6 +301,20 @@ const s = {
     fontSize: '22px',
     cursor: 'pointer',
     boxShadow: '0 8px 20px rgba(104, 40, 55, 0.18)',
+  },
+  donationBtn: {
+    width: '100%',
+    marginBottom: '1rem',
+    padding: '0.85rem 1rem',
+    borderRadius: '18px',
+    border: '1px solid rgba(104, 40, 55, 0.18)',
+    background: 'rgba(240, 228, 191, 0.74)',
+    color: 'var(--color-burgundy)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '14px',
+    fontWeight: 800,
+    cursor: 'pointer',
+    boxShadow: '0 8px 18px rgba(82, 48, 26, 0.08)',
   },
   setBtn: {
     marginTop: '0.35rem',
@@ -762,8 +777,15 @@ const POSPage: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submittingDonation, setSubmittingDonation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSubmittedOrder, setLastSubmittedOrder] = useState<Pick<Order, 'ticket_number' | 'created_at' | 'total'> | null>(null);
+  const [lastDonationMessage, setLastDonationMessage] = useState<string | null>(null);
+  const [donationModalOpen, setDonationModalOpen] = useState(false);
+  const [donationAmount, setDonationAmount] = useState('');
+  const [donorName, setDonorName] = useState('');
+  const [donationNote, setDonationNote] = useState('');
+  const [donationError, setDonationError] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<'products' | 'cart'>('products');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
@@ -795,6 +817,7 @@ const POSPage: React.FC = () => {
 
   const commitCartItem = useCallback((item: Omit<CartItem, 'quantity'>) => {
     setLastSubmittedOrder(null);
+    setLastDonationMessage(null);
     setCart(prev => {
       const idx = prev.findIndex(existing =>
         !isBestieSetCartItem(existing) &&
@@ -812,6 +835,21 @@ const POSPage: React.FC = () => {
     });
     if (isMobile) setMobileView('cart');
   }, [isMobile]);
+
+  const closeDonationModal = useCallback(() => {
+    setDonationModalOpen(false);
+    setDonationAmount('');
+    setDonorName('');
+    setDonationNote('');
+    setDonationError(null);
+  }, []);
+
+  const openDonationModal = useCallback(() => {
+    setLastSubmittedOrder(null);
+    setLastDonationMessage(null);
+    setDonationError(null);
+    setDonationModalOpen(true);
+  }, []);
 
   const closeCustomization = useCallback(() => {
     setCustomizingProduct(null);
@@ -1083,6 +1121,8 @@ const POSPage: React.FC = () => {
   const finalTotal = finalTotalOverride ?? orderSubtotal;
   const cartCount = cart.reduce((sum, i) => sum + (isBestieSetCartItem(i) ? 1 : i.quantity), 0);
   const canSubmit = cart.length > 0 && staffName.trim().length > 0 && customerName.trim().length > 0 && !submitting;
+  const donationNumericAmount = Number(donationAmount);
+  const canSubmitDonation = Number.isFinite(donationNumericAmount) && donationNumericAmount > 0 && donorName.trim().length > 0 && staffName.trim().length > 0 && !submittingDonation;
   const canConfirmCustomization = customizingProduct && (
     isPostcard(customizingProduct)
       ? selectedPostcardVariant !== null
@@ -1116,6 +1156,7 @@ const POSPage: React.FC = () => {
     }
     setError(null);
     setLastSubmittedOrder(null);
+    setLastDonationMessage(null);
     setSubmitting(true);
 
     try {
@@ -1155,6 +1196,38 @@ const POSPage: React.FC = () => {
       setError(error instanceof Error ? error.message : 'Unable to create order');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function submitDonation() {
+    if (!canSubmitDonation) {
+      if (!donorName.trim()) setDonationError('Enter the donor name before recording the donation.');
+      else if (!staffName.trim()) setDonationError('Enter your staff name before recording the donation.');
+      else setDonationError('Enter a donation amount greater than 0.');
+      return;
+    }
+
+    setSubmittingDonation(true);
+    setDonationError(null);
+    setLastSubmittedOrder(null);
+    setLastDonationMessage(null);
+
+    try {
+      const donation = await createDonation({
+        amount: donationNumericAmount,
+        payment_method: paymentMethod,
+        donor_name: donorName.trim(),
+        staff_name: staffName.trim(),
+        note: donationNote.trim() || null,
+      });
+
+      setLastDonationMessage(`Donation recorded for ${donation.donor_name ?? donorName.trim()} - $${Number(donation.amount).toFixed(2)}.`);
+      closeDonationModal();
+      if (isMobile) setMobileView('cart');
+    } catch (error) {
+      setDonationError(error instanceof Error ? error.message : 'Unable to record donation');
+    } finally {
+      setSubmittingDonation(false);
     }
   }
 
@@ -1246,6 +1319,12 @@ const POSPage: React.FC = () => {
           Bestie Set - $18
         </button>
       )}
+      <button
+        style={s.donationBtn}
+        onClick={openDonationModal}
+      >
+        Donation - Custom Amount
+      </button>
       <div style={s.categoryList}>
         {CATEGORY_ORDER.filter(category => grouped[category]).map(category => (
           <div key={category} style={s.categorySection}>
@@ -1288,6 +1367,93 @@ const POSPage: React.FC = () => {
           </div>
         ))}
       </div>
+      {donationModalOpen && (
+        <div style={s.modalOverlay} onClick={closeDonationModal}>
+          <div style={s.modalCard} onClick={e => e.stopPropagation()}>
+            <div style={s.modalHeader}>
+              <div style={s.modalTitleWrap}>
+                <span style={s.modalEyebrow}>Standalone Gift</span>
+                <h2 style={s.modalTitle}>Record Donation</h2>
+                <p style={s.modalText}>Enter a custom amount and donor name. This records separately from sales revenue.</p>
+              </div>
+              <button style={s.modalCloseBtn} onClick={closeDonationModal} aria-label="Close donation">x</button>
+            </div>
+
+            <label style={s.optionGroup}>
+              <span style={s.label}>Amount *</span>
+              <input
+                style={{ ...s.totalPriceInput, width: '100%', textAlign: 'left' }}
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                value={donationAmount}
+                onChange={event => setDonationAmount(event.target.value)}
+                placeholder="0.00"
+              />
+            </label>
+
+            <label style={s.optionGroup}>
+              <span style={s.label}>Donor Name *</span>
+              <input
+                style={s.input}
+                value={donorName}
+                onChange={event => setDonorName(event.target.value)}
+                placeholder="Who is this from?"
+              />
+            </label>
+
+            <div style={s.optionGroup}>
+              <span style={s.label}>Payment</span>
+              <div style={s.paymentGroup}>
+                {(['cash', 'card', 'other'] as PaymentMethod[]).map(method => (
+                  <button
+                    key={method}
+                    type="button"
+                    style={s.paymentBtn(paymentMethod === method)}
+                    onClick={() => setPaymentMethod(method)}
+                  >
+                    {method.charAt(0).toUpperCase() + method.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label style={s.optionGroup}>
+              <span style={s.label}>Staff *</span>
+              <input
+                style={s.input}
+                value={staffName}
+                onChange={event => setStaffName(event.target.value)}
+                placeholder="Who recorded this?"
+              />
+            </label>
+
+            <label style={s.optionGroup}>
+              <span style={s.label}>Note</span>
+              <input
+                style={s.input}
+                value={donationNote}
+                onChange={event => setDonationNote(event.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+
+            {donationError && <div style={s.alert('error')}>{donationError}</div>}
+
+            <div style={s.modalFooter}>
+              <button style={s.ghostBtn} onClick={closeDonationModal}>Cancel</button>
+              <button
+                style={s.submitBtn(!canSubmitDonation)}
+                disabled={!canSubmitDonation}
+                onClick={submitDonation}
+              >
+                {submittingDonation ? 'Recording...' : `Record Donation - $${(Number.isFinite(donationNumericAmount) ? Math.max(donationNumericAmount, 0) : 0).toFixed(2)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {customizingProduct && (
         <div style={s.modalOverlay} onClick={closeCustomization}>
           <div style={s.modalCard} onClick={e => e.stopPropagation()}>
@@ -1740,6 +1906,7 @@ const POSPage: React.FC = () => {
             {new Date(lastSubmittedOrder.created_at).toLocaleString()}
           </div>
         )}
+        {lastDonationMessage && <div style={s.alert('success')}>{lastDonationMessage}</div>}
 
         <button
           style={s.submitBtn(!canSubmit)}

@@ -34,6 +34,7 @@ export async function createDonation(payload: DonationPayload) {
 
 export function getDonationSearchText(donation: Donation) {
   return [
+    donation.donor_name,
     donation.staff_name,
     donation.payment_method,
     donation.note,

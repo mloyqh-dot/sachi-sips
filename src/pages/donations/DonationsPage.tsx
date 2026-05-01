@@ -170,6 +170,7 @@ const s = {
 const DonationsPage: React.FC = () => {
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [donorName, setDonorName] = useState('');
   const [staffName, setStaffName] = useState('');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -177,7 +178,7 @@ const DonationsPage: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
 
   const numericAmount = useMemo(() => Number(amount), [amount]);
-  const canSubmit = Number.isFinite(numericAmount) && numericAmount > 0 && staffName.trim().length > 0 && !submitting;
+  const canSubmit = Number.isFinite(numericAmount) && numericAmount > 0 && donorName.trim().length > 0 && staffName.trim().length > 0 && !submitting;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -192,12 +193,14 @@ const DonationsPage: React.FC = () => {
       const donation = await createDonation({
         amount: numericAmount,
         payment_method: paymentMethod,
+        donor_name: donorName.trim(),
         staff_name: staffName.trim(),
         note: note.trim() || null,
       });
 
-      setSuccess(`${formatCurrency(Number(donation.amount))} ${formatPaymentMethod(donation.payment_method)} donation recorded.`);
+      setSuccess(`${formatCurrency(Number(donation.amount))} ${formatPaymentMethod(donation.payment_method)} donation recorded for ${donation.donor_name ?? donorName.trim()}.`);
       setAmount('');
+      setDonorName('');
       setNote('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to record donation');
@@ -249,6 +252,16 @@ const DonationsPage: React.FC = () => {
           </div>
 
           <label style={s.field}>
+            <span style={s.label}>Donor Name</span>
+            <input
+              style={s.input}
+              value={donorName}
+              onChange={event => setDonorName(event.target.value)}
+              placeholder="Who is this from?"
+            />
+          </label>
+
+          <label style={s.field}>
             <span style={s.label}>Staff</span>
             <input
               style={s.input}
@@ -284,6 +297,7 @@ const DonationsPage: React.FC = () => {
           <span style={s.label}>Current Entry</span>
           <span style={s.previewAmount}>{formatCurrency(Number.isFinite(numericAmount) ? Math.max(numericAmount, 0) : 0)}</span>
           <span style={s.meta}>{formatPaymentMethod(paymentMethod)} donation</span>
+          <span style={s.meta}>Donor: {donorName.trim() || 'Not set'}</span>
           <span style={s.meta}>Staff: {staffName.trim() || 'Not set'}</span>
           {note.trim() && <span style={s.meta}>Note: {note.trim()}</span>}
         </aside>
