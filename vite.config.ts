@@ -103,6 +103,7 @@ function localApiPlugin(): Plugin {
       server.middlewares.use('/api/complete-order', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/complete-order'))))
       server.middlewares.use('/api/collect-preorder', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/collect-preorder'))))
       server.middlewares.use('/api/mark-station-ready', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/mark-station-ready'))))
+      server.middlewares.use('/api/receipt-notes', createLocalApiMiddleware(() => loadApiHandler(() => import('./api/receipt-notes'))))
     },
   }
 }

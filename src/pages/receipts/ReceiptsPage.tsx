@@ -193,6 +193,47 @@ const s = {
     fontWeight: 700,
     color: 'var(--color-burgundy)',
   },
+  notesPanel: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '0.65rem',
+    padding: '0.75rem',
+    borderRadius: '14px',
+    background: 'rgba(240, 228, 191, 0.34)',
+    border: '1px solid rgba(104, 40, 55, 0.08)',
+  },
+  textarea: {
+    width: '100%',
+    minHeight: '92px',
+    resize: 'vertical' as const,
+    boxSizing: 'border-box' as const,
+    borderRadius: '12px',
+    border: '1px solid rgba(104, 40, 55, 0.18)',
+    background: 'rgba(255, 255, 255, 0.68)',
+    color: 'var(--color-burgundy)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '13px',
+    lineHeight: 1.45,
+    padding: '0.65rem 0.75rem',
+  },
+  noteActions: {
+    display: 'flex',
+    gap: '0.5rem',
+    flexWrap: 'wrap' as const,
+  },
+  noteButton: (primary: boolean, disabled = false) => ({
+    minHeight: '36px',
+    padding: '0.45rem 0.8rem',
+    borderRadius: '999px',
+    border: `1px solid ${primary ? 'rgba(104, 40, 55, 0.28)' : 'rgba(104, 40, 55, 0.16)'}`,
+    background: primary ? 'var(--color-burgundy)' : 'rgba(255, 255, 255, 0.62)',
+    color: primary ? '#FFF7E8' : 'var(--color-brown)',
+    fontFamily: "'Public Sans', sans-serif",
+    fontSize: '12px',
+    fontWeight: 800,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.5 : 1,
+  }),
   items: {
     display: 'flex',
     flexDirection: 'column' as const,
@@ -260,6 +301,9 @@ const ReceiptsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteStatus, setNoteStatus] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -296,6 +340,50 @@ const ReceiptsPage: React.FC = () => {
   }, [orders, paymentFilter, search]);
 
   const selectedOrder = filteredOrders.find(order => order.id === selectedOrderId) ?? filteredOrders[0] ?? null;
+
+  useEffect(() => {
+    setNoteDraft(selectedOrder?.notes ?? '');
+    setNoteStatus(null);
+  }, [selectedOrder?.id, selectedOrder?.notes]);
+
+  const noteChanged = noteDraft.trim() !== (selectedOrder?.notes ?? '').trim();
+
+  async function saveReceiptNote(nextNote = noteDraft) {
+    if (!selectedOrder || savingNote) return;
+
+    setSavingNote(true);
+    setNoteStatus(null);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/receipt-notes', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          order_id: selectedOrder.id,
+          notes: nextNote,
+        }),
+      });
+      const result = await response.json().catch(() => null) as { error?: string; order?: { id: string; notes: string | null } } | null;
+
+      if (!response.ok || !result?.order) {
+        throw new Error(result?.error || 'Unable to save receipt note');
+      }
+
+      setOrders(current => current.map(order =>
+        order.id === result.order?.id ? { ...order, notes: result.order.notes } : order
+      ));
+      setNoteDraft(result.order.notes ?? '');
+      setNoteStatus('Receipt note saved.');
+    } catch (err) {
+      setNoteStatus(null);
+      setError(err instanceof Error ? err.message : 'Unable to save receipt note');
+    } finally {
+      setSavingNote(false);
+    }
+  }
 
   return (
     <div style={s.page}>
@@ -405,12 +493,40 @@ const ReceiptsPage: React.FC = () => {
                     )}
                   </div>
 
-                  {selectedOrder.notes && (
-                    <div style={s.metaCell}>
-                      <span style={s.label}>Notes</span>
-                      <span style={s.metaValue}>{selectedOrder.notes}</span>
+                  <div style={s.notesPanel}>
+                    <label style={s.field}>
+                      <span style={s.label}>Receipt Notes</span>
+                      <textarea
+                        style={s.textarea}
+                        value={noteDraft}
+                        maxLength={1000}
+                        onChange={event => {
+                          setNoteDraft(event.target.value);
+                          setNoteStatus(null);
+                        }}
+                        placeholder="Add reconciliation context, e.g. rounded up as donation."
+                      />
+                    </label>
+                    <div style={s.noteActions}>
+                      <button
+                        type="button"
+                        style={s.noteButton(true, !noteChanged || savingNote)}
+                        disabled={!noteChanged || savingNote}
+                        onClick={() => saveReceiptNote()}
+                      >
+                        {savingNote ? 'Saving...' : 'Save Note'}
+                      </button>
+                      <button
+                        type="button"
+                        style={s.noteButton(false, savingNote || (!noteDraft && !selectedOrder.notes))}
+                        disabled={savingNote || (!noteDraft && !selectedOrder.notes)}
+                        onClick={() => saveReceiptNote('')}
+                      >
+                        Clear
+                      </button>
+                      {noteStatus && <span style={s.listMeta}>{noteStatus}</span>}
                     </div>
-                  )}
+                  </div>
 
                   <div style={s.items}>
                     {selectedOrder.items.map(item => {

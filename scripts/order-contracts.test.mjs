@@ -9,6 +9,7 @@ const apiPreorders = readFileSync(new URL('../api/preorders.ts', import.meta.url
 const apiCollectPreorder = readFileSync(new URL('../api/collect-preorder.ts', import.meta.url), 'utf8');
 const apiDonations = readFileSync(new URL('../api/donations.ts', import.meta.url), 'utf8');
 const apiDonationsHistory = readFileSync(new URL('../api/donations-history.ts', import.meta.url), 'utf8');
+const apiReceiptNotes = readFileSync(new URL('../api/receipt-notes.ts', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const posPage = readFileSync(new URL('../src/pages/pos/POSPage.tsx', import.meta.url), 'utf8');
 const dashboardPage = readFileSync(new URL('../src/pages/dashboard/DashboardPage.tsx', import.meta.url), 'utf8');
@@ -389,13 +390,31 @@ assert.match(
   'ReceiptsPage should load completed order history'
 );
 
+assert.match(
+  apiReceiptNotes,
+  /\.eq\('status', 'completed'\)/,
+  'api/receipt-notes.ts should only update notes on completed receipt orders'
+);
+
+assert.match(
+  apiReceiptNotes,
+  /notes/,
+  'api/receipt-notes.ts should update the orders.notes field'
+);
+
+assert.match(
+  receiptsPage,
+  /noteDraft|saveReceiptNote|receipt-notes/,
+  'ReceiptsPage should edit and save receipt notes for reconciliation'
+);
+
 assert.doesNotMatch(
   receiptsPage,
   /TODO: Display list of receipts/,
   'ReceiptsPage should not remain a stub'
 );
 
-for (const apiPath of ['/api/orders', '/api/orders-history', '/api/donations', '/api/donations-history', '/api/live-orders', '/api/preorders', '/api/complete-order', '/api/collect-preorder', '/api/mark-station-ready']) {
+for (const apiPath of ['/api/orders', '/api/orders-history', '/api/donations', '/api/donations-history', '/api/live-orders', '/api/preorders', '/api/complete-order', '/api/collect-preorder', '/api/mark-station-ready', '/api/receipt-notes']) {
   assert.match(
     viteConfig,
     new RegExp(apiPath.replace(/\//g, '\\/')),
